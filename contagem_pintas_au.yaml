@@ -1,0 +1,49 @@
+name: "contagem_de_pintas_au"
+schedule: null
+description: "Dados de contagem de pintas de Au"
+tags: 
+  - "geoquimica"
+  - "postgresql"
+  - "ESRI"
+dagArgs: {
+  # params: ""
+}
+etl:
+  source:
+    connectionName: null
+    schema: "geoq_valida"
+    table: "resultados_analiticos_contagem_pintas_au"
+    primaryKeyColumn: "objectid"
+    geometryColumn:
+      xColumn: "longitude"
+      yColumn: "latitude"
+      srid: 4674
+    timestampColumn:
+      - name: "data_de_analise"
+        format: "%d/%m/%Y"
+  destination:
+    connectionName: null
+    schema: "geoquimica"
+    surveyTable: 
+      name: "contagem_pintas_au_amostras"
+      primaryKeyColumn: "fid"
+      geometryColumn: "geometry"
+    assayTable:
+      name: "contagem_pintas_au_analises"
+      indexColumns:
+        - "amostra"
+        - "analito"
+      valueColumn: "quantidade"
+      excludedColumns: 
+        - "globalid"
+        - "lote"
+        - "ra"
+        - "metodo"
+        - "created_user"
+        - "created_date"
+        - "last_edited_user"
+        - "last_edited_date"
+    matViews:
+      - arcgis.geoquimica_contagem_pintas_au_amostras
+      - arcgis.geoquimica_contagem_pintas_au_analises
+      - arcgis.geoquimica_contagem_pintas_au_pivot_join

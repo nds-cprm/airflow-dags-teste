@@ -1,0 +1,1 @@
+postgresql://mota:kengrant@lrnpdbms05.sgb.local:5432/inde_data

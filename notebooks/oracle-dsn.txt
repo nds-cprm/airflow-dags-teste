@@ -1,0 +1,1 @@
+oracle://mota:OKq784@10.201.0.31:1521/geodese

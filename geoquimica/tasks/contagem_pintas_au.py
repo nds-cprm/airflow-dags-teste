@@ -14,7 +14,9 @@ log = logging.getLogger("airflow.task")
 def sanitize_assay_dataset(dataset, assay_cols, etl: GeoquimicaETLConfig, **kwargs):
     import pandas as pd
 
+    # Data cleaning constants
     spaces_regex = r"\s"
+
     missing_values = [
         "ND", "", "N.A.", 0, "0", " ", "#N/A", "#N/A N/A", "#NA", "-1.#IND", 
         "-1.#QNAN", "-NaN", "-nan", "1.#IND", "1.#QNAN", "<NA>", "N/A", "NA", 
@@ -43,6 +45,11 @@ def sanitize_assay_dataset(dataset, assay_cols, etl: GeoquimicaETLConfig, **kwar
     df = pd.read_parquet(dataset)        
 
     # Tratamento de dados de amostras
+    valueColumn = etl.destination.assayTable.valueColumn
+
+    if isinstance(valueColumn, tuple):
+        valueColumn = "_".join(valueColumn)
+
     assay_df = (
         df.filter(assay_cols)
             .apply(lambda col: col.replace("", None))
@@ -55,7 +62,7 @@ def sanitize_assay_dataset(dataset, assay_cols, etl: GeoquimicaETLConfig, **kwar
             .stack()
             # Ajusta nomes
             .rename_axis(etl.destination.assayTable.indexColumns)
-            .rename(etl.destination.assayTable.valueColumn)
+            .rename(valueColumn)
             # handle missing data on values
             .pipe(handle_missing)
             .dropna()
@@ -63,7 +70,7 @@ def sanitize_assay_dataset(dataset, assay_cols, etl: GeoquimicaETLConfig, **kwar
             # .pipe(handle_normalized, normalize_values)
     )
 
-    # ObjectID tem que ser único
+    # Index tem que ser único
     assert assay_df.index.is_unique
 
     # Valores precisam atender a padrão de valores
@@ -81,6 +88,7 @@ def sanitize_assay_dataset(dataset, assay_cols, etl: GeoquimicaETLConfig, **kwar
     #     df[df.index.isin(assay_error_oids)].to_csv(out_assay_error_file, index=True)
     #     logging.warn(f"Amostras com problemas de validação de valores estão salvas no arquivo '{out_assay_error_file}'")
     
+    # Gravar em Parquet
     return export_parquet(
         assay_df.to_frame(), 
         f"{etl.name}/silver", 

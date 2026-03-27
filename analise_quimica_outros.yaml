@@ -1,0 +1,52 @@
+name: "analise_quimica_outros"
+schedule: null
+description: "Dados de análise química de mineral de minério"
+tags: 
+  - "geoquimica"
+  - "postgresql"
+  - "ESRI"
+dagArgs: {
+  # params: ""
+}
+etl:
+  source:
+    connectionName: null
+    schema: "geoq_valida"
+    table: "resultados_analiticos_outros"
+    primaryKeyColumn: "objectid"
+    geometryColumn:
+      xColumn: "longitude"
+      yColumn: "latitude"
+      srid: 4674
+    timestampColumn:
+      - name: "data_de_analise"
+        format: "%d/%m/%Y"
+  destination:
+    connectionName: null
+    schema: "geoquimica"
+    surveyTable: 
+      name: "outros_amostras"
+      primaryKeyColumn: "fid"
+      geometryColumn: "geometry"
+    assayTable:
+      name: "outros_analises_quimicas"
+      indexColumns:
+        - "amostra"
+        - "analito"
+        - "unidade"
+      valueColumn: 
+        - "qualificador"
+        - "valor"
+      excludedColumns: 
+        - "globalid"
+        - "lote"
+        - "ra"
+        - "metodo"
+        - "created_user"
+        - "created_date"
+        - "last_edited_user"
+        - "last_edited_date"
+    matViews:
+      - arcgis.geoquimica_outros_amostras
+      - arcgis.geoquimica_outros_analises_quimicas
+      - arcgis.geoquimica_outros_pivot_join

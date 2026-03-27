@@ -1,14 +1,15 @@
 import logging
 
-from airflow.decorators import dag, task
+from airflow.decorators import dag
 # from airflow.exceptions import AirflowFailException, AirflowSkipException
 # from airflow.providers.smtp.operators.smtp import EmailOperator
 from pathlib import Path
 
 from teste.common import default_args
 from teste.geoquimica.models import GeoquimicaETLConfig
-from teste.geoquimica.tasks.common import extract_bronze_table, sanitize_survey_dataset, write_postgres
+from teste.geoquimica.tasks.common import extract_bronze_table, sanitize_survey_dataset
 from teste.geoquimica.tasks.contagem_pintas_au import sanitize_assay_dataset
+from teste.geoquimica.tasks.load import write_postgres
 
 
 log = logging.getLogger("airflow.task")

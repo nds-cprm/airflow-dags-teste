@@ -1,7 +1,7 @@
 import yaml
 
 from dataclasses import dataclass, field
-from typing import Tuple, Optional, Any
+from typing import Tuple, Optional, Any, Union
 
 @dataclass(kw_only=True)
 class Coordinates:
@@ -36,7 +36,7 @@ class AssayTable:
         "amostra",
         "analito"
     )
-    valueColumn: str = "valor"
+    valueColumn: Union[str, Tuple[str]] = "valor"
     excludedColumns: Tuple[str] = (
         "globalid",
         "lote",

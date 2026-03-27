@@ -1,0 +1,52 @@
+name: "analise_quimica_concentrado_de_bateia"
+schedule: null
+description: "Dados de análise química de concentrado de bateia"
+tags: 
+  - "geoquimica"
+  - "postgresql"
+  - "ESRI"
+dagArgs: {
+  # params: ""
+}
+etl:
+  source:
+    connectionName: null
+    schema: "geoq_valida"
+    table: "resultados_analiticos_concentrado_de_bateia"
+    primaryKeyColumn: "objectid"
+    geometryColumn:
+      xColumn: "longitude"
+      yColumn: "latitude"
+      srid: 4674
+    timestampColumn:
+      - name: "data_de_analise"
+        format: "%d/%m/%Y"
+  destination:
+    connectionName: null
+    schema: "geoquimica"
+    surveyTable: 
+      name: "concentrado_de_bateia_amostras"
+      primaryKeyColumn: "fid"
+      geometryColumn: "geometry"
+    assayTable:
+      name: "concentrado_de_bateia_analises_quimicas"
+      indexColumns:
+        - "amostra"
+        - "analito"
+        - "unidade"
+      valueColumn: 
+        - "qualificador"
+        - "valor"
+      excludedColumns: 
+        - "globalid"
+        - "lote"
+        - "ra"
+        - "metodo"
+        - "created_user"
+        - "created_date"
+        - "last_edited_user"
+        - "last_edited_date"
+    matViews:
+      - arcgis.geoquimica_concentrado_de_bateia_amostras
+      - arcgis.geoquimica_concentrado_de_bateia_analises_quimicas
+      - arcgis.geoquimica_concentrado_de_bateia_pivot_join

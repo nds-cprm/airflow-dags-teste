@@ -1,0 +1,49 @@
+name: "analise_mineralometrica"
+schedule: null
+description: "Dados de mineralometria"
+tags: 
+  - "geoquimica"
+  - "postgresql"
+  - "ESRI"
+dagArgs: {
+  # params: ""
+}
+etl:
+  source:
+    connectionName: null
+    schema: "geoq_valida"
+    table: "resultados_analiticos_mineralometria"
+    primaryKeyColumn: "objectid"
+    geometryColumn:
+      xColumn: "longitude"
+      yColumn: "latitude"
+      srid: 4674
+    timestampColumn:
+      - name: "data_de_analise"
+        format: "%d/%m/%Y"
+  destination:
+    connectionName: null
+    schema: "geoquimica"
+    surveyTable: 
+      name: "mineralometria_amostras"
+      primaryKeyColumn: "fid"
+      geometryColumn: "geometry"
+    assayTable:
+      name: "mineralometria_analises"
+      indexColumns:
+        - "amostra"
+        - "analito"
+      valueColumn: "valor"
+      excludedColumns: 
+        - "globalid"
+        - "lote"
+        - "ra"
+        - "metodo"
+        - "created_user"
+        - "created_date"
+        - "last_edited_user"
+        - "last_edited_date"
+    matViews:
+      - arcgis.geoquimica_mineralometria_amostras
+      - arcgis.geoquimica_mineralometria_analises
+      - arcgis.geoquimica_mineralometria_pivot_join

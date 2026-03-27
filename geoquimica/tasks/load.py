@@ -4,7 +4,7 @@ from airflow.decorators import task
 from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-from teste.geoquimica.models import GeoquimicaETLConfig
+from sgb.geoquimica.models import GeoquimicaETLConfig
 
 
 log = logging.getLogger("airflow.task")

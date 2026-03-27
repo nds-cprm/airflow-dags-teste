@@ -41,7 +41,7 @@ for sde_layer in sde_layers:
 
     # Banco de dados de destino
     dst_dsn = module_dir / "notebooks/postgres-dsn.txt"
-    dst_schema, dst_table_name = "_teste", f"{src_schema}_{src_table_name}"
+    dst_schema, dst_table_name = "_sgb", f"{src_schema}_{src_table_name}"
     dst_pk_name, dst_geom_name = "fid", "geometry"
 
     # Que comecem os jogos

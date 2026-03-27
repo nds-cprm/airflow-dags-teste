@@ -7,11 +7,11 @@ from airflow.decorators import dag
 # from airflow.providers.smtp.operators.smtp import EmailOperator
 from pathlib import Path
 
-from teste.common import default_args
-from teste.geoquimica.models import GeoquimicaETLConfig
-from teste.geoquimica.tasks.common import extract_bronze_table, sanitize_survey_dataset
-from teste.geoquimica.tasks.load import write_postgres
-from teste.geoquimica.tasks.analise_quimica import sanitize_assay_dataset
+from sgb.common import default_args
+from sgb.geoquimica.models import GeoquimicaETLConfig
+from sgb.geoquimica.tasks.common import extract_bronze_table, sanitize_survey_dataset
+from sgb.geoquimica.tasks.load import write_postgres
+from sgb.geoquimica.tasks.analise_quimica import sanitize_assay_dataset
 
 
 log = logging.getLogger("airflow.task")

@@ -5,9 +5,9 @@ from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from slugify import slugify
 
-from teste.common import export_parquet
-from teste.common.postgres import get_postgres_table_colums
-from teste.geoquimica.models import GeoquimicaETLConfig
+from sgb.common import export_parquet
+from sgb.common.postgres import get_postgres_table_colums
+from sgb.geoquimica.models import GeoquimicaETLConfig
 
 
 log = logging.getLogger("airflow.task")

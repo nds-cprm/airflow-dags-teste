@@ -9,7 +9,7 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 # from airflow.providers.smtp.operators.smtp import EmailOperator
 from pathlib import Path
 
-from teste.common import default_args
+from sgb.common import default_args
 
 
 log = logging.getLogger("airflow.task")

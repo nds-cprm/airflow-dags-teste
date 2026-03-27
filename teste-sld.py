@@ -43,5 +43,5 @@ for row in colors.itertuples():
 
 # _sld.validate()
 
-with open(Path(__file__).parent / "teste.sld", "wb") as f:
+with open(Path(__file__).parent / "sgb.sld", "wb") as f:
     f.write(_sld.as_sld(pretty_print=True))

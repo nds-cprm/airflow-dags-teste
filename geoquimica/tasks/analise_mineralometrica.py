@@ -3,9 +3,9 @@ import logging
 from airflow.decorators import task
 from slugify import slugify
 
-from teste.common import export_parquet
-from teste.geoquimica.models import GeoquimicaETLConfig
-from teste.geoquimica.utils import (
+from sgb.common import export_parquet
+from sgb.geoquimica.models import GeoquimicaETLConfig
+from sgb.geoquimica.utils import (
     handle_normalized, handle_missing, NORMALIZE_VALUES
 )
 

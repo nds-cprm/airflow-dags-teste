@@ -53,7 +53,7 @@ def extract_bronze_table(etl: GeoquimicaETLConfig, **kwargs):
 
     # columns
     survey_cols = get_postgres_table_colums(hook, dst_schema, dst_table) 
-    weight_columns = etl.source.weightColumns or None
+    weight_columns = etl.source.weightColumns or []
     assay_cols = tuple(filter(lambda col: col not in list(survey_cols) + list(dst_excluded) + list(set(weight_columns)), sample_df.columns))
 
     return {

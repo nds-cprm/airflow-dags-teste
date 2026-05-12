@@ -2,7 +2,7 @@ name: "contagem_de_pintas_au"
 schedule: null
 description: "Dados de contagem de pintas de Au"
 tags: 
-  - "geoquimica"
+  - "mineralometria"
   - "postgresql"
   - "ESRI"
 dagArgs: {

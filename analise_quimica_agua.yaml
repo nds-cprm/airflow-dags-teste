@@ -11,7 +11,7 @@ dagArgs: {
 etl:
   source:
     connectionName: null
-    schema: "geoq_valida"
+    schema: "geoquimica_prospectiva"
     table: "resultados_analiticos_agua"
     primaryKeyColumn: "objectid"
     geometryColumn:
@@ -42,6 +42,7 @@ etl:
         - "lote"
         - "ra"
         - "metodo"
+        - "finalidade"
         - "created_user"
         - "created_date"
         - "last_edited_user"

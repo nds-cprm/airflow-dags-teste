@@ -11,7 +11,7 @@ dagArgs: {
 etl:
   source:
     connectionName: null
-    schema: "geoq_valida"
+    schema: "geoquimica_prospectiva"
     table: "resultados_analiticos_outros"
     primaryKeyColumn: "objectid"
     geometryColumn:

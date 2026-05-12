@@ -22,6 +22,7 @@ class SourceETL:
     primaryKeyColumn: str = "objectid"
     connectionName: Optional[str]
     timestampColumn: Optional[Tuple[TimestampColumn]]
+    weightColumns: Optional[Tuple[str]] = ()
 
 @dataclass(kw_only=True)
 class SurveyTable:

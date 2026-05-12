@@ -8,7 +8,7 @@ from pathlib import Path
 from sgb.common import default_args
 from sgb.geoquimica.models import GeoquimicaETLConfig
 from sgb.geoquimica.tasks.common import extract_bronze_table, sanitize_survey_dataset
-from sgb.geoquimica.tasks.contagem_pintas_au import sanitize_assay_dataset
+from sgb.geoquimica.tasks.analise_mineralometrica import sanitize_weight_dataset, sanitize_assay_dataset
 from sgb.geoquimica.tasks.load import write_postgres
 
 
@@ -30,9 +30,18 @@ def analise_mineralometrica_etl():
     Geoquímica: Contagem de Pintas de Au
     """
     results = extract_bronze_table(etl_conf)
+    
+    # sample data
     survey_sanitized = sanitize_survey_dataset(results["dataset"], results["survey_cols"], etl_conf)
-    # assay_sanitized = sanitize_assay_dataset(results["dataset"], results["assay_cols"], etl_conf)
-    # write_postgres(survey_sanitized, assay_sanitized, etl_conf)
+
+    # weight data
+    weight_sanitized = sanitize_weight_dataset(results["dataset"], results["weight_cols"], etl_conf)
+    
+    # mineral data
+    assay_sanitized = sanitize_assay_dataset(results["dataset"], results["assay_cols"], etl_conf)
+    
+    # write data
+    write_postgres(survey_sanitized, [weight_sanitized, assay_sanitized], etl_conf)
 
     
 _dag = analise_mineralometrica_etl()

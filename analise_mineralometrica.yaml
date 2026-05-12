@@ -21,6 +21,35 @@ etl:
     timestampColumn:
       - name: "data_de_analise"
         format: "%d/%m/%Y"
+    weightColumns: 
+      # colunas antigas
+      - 'peso_inicial_g'
+      - 'peso_fracionado_g'
+      - 'peso_conc_0_3_g'
+      - 'peso_bateia_0_3_g'
+      - 'magnetico_ima_mao_g'
+      - 'total_pesado_g'
+      - 'nao_analisadas_leves_g'
+      - 'semi_magnetico_g'
+      - 'nao_magneticos_g'
+      - 'total_analisado_g'
+      # Novas colunas
+      - 'peso_inicial_g'
+      - 'peso_lavado_g'
+      - 'peso_emb_finos_g'
+      - 'peso_quarteado_g'
+      - 'peso_concentrado_g'
+      - 'pi_sep_magnetico_g'
+      - 'magnetico_g'
+      - 'semi_magnetico_g'
+      - 'nao_magnetico_g'
+      - 'au_semi_magnetico_g'
+      - 'au_concentrado_nao_magnetico_g'
+      - 'au_total_analisado_g'
+      - 'atraido_ima_mao_1500_gauss'
+      - 'atraido_ima_mao_7500_gauss'
+      - 'nao_atraido_ima_mao_7500_gauss'
+      - 'peso_total_analisado'
   destination:
     connectionName: null
     schema: "geoquimica"

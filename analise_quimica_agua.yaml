@@ -48,6 +48,6 @@ etl:
         - "last_edited_user"
         - "last_edited_date"
     matViews:
-      - arcgis.geoquimica_agua_amostras
-      - arcgis.geoquimica_agua_analises_quimicas
-      - arcgis.geoquimica_agua_pivot_join
+      - arcgis.agua_amostras
+      - arcgis.agua_analises_quimicas
+      - arcgis.agua_pivot_join

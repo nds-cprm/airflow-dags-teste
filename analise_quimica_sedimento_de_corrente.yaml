@@ -48,6 +48,6 @@ etl:
         - "last_edited_user"
         - "last_edited_date"
     matViews:
-      - arcgis.geoquimica_sedimento_de_corrente_amostras
-      - arcgis.geoquimica_sedimento_de_corrente_analises_quimicas
-      - arcgis.geoquimica_sedimento_de_corrente_pivot_join
+      - arcgis.sedimento_de_corrente_amostras
+      - arcgis.sedimento_de_corrente_analises_quimicas
+      - arcgis.sedimento_de_corrente_pivot_join

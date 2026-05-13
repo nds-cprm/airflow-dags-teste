@@ -48,6 +48,6 @@ etl:
         - "last_edited_user"
         - "last_edited_date"
     matViews:
-      - arcgis.geoquimica_solo_amostras
-      - arcgis.geoquimica_solo_analises_quimicas
-      - arcgis.geoquimica_solo_pivot_join
+      - arcgis.solo_amostras
+      - arcgis.solo_analises_quimicas
+      - arcgis.solo_pivot_join

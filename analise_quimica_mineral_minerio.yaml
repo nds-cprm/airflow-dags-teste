@@ -47,6 +47,6 @@ etl:
         - "last_edited_user"
         - "last_edited_date"
     matViews:
-      - arcgis.geoquimica_mineral_minerio_amostras
-      - arcgis.geoquimica_mineral_minerio_analises_quimicas
-      - arcgis.geoquimica_mineral_minerio_pivot_join
+      - arcgis.mineral_minerio_amostras
+      - arcgis.mineral_minerio_analises_quimicas
+      - arcgis.mineral_minerio_pivot_join

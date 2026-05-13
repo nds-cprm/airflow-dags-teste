@@ -44,6 +44,6 @@ etl:
         - "last_edited_user"
         - "last_edited_date"
     matViews:
-      - arcgis.geoquimica_contagem_pintas_au_amostras
-      - arcgis.geoquimica_contagem_pintas_au_analises
-      - arcgis.geoquimica_contagem_pintas_au_pivot_join
+      - arcgis.contagem_pintas_au_amostras
+      - arcgis.contagem_pintas_au_analises
+      - arcgis.contagem_pintas_au_pivot_join

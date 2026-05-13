@@ -47,6 +47,6 @@ etl:
         - "last_edited_user"
         - "last_edited_date"
     matViews:
-      - arcgis.geoquimica_rocha_amostras
-      - arcgis.geoquimica_rocha_analises_quimicas
-      - arcgis.geoquimica_rocha_pivot_join
+      - arcgis.rocha_amostras
+      - arcgis.rocha_analises_quimicas
+      - arcgis.rocha_pivot_join

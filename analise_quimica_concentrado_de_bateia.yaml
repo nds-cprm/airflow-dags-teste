@@ -47,6 +47,6 @@ etl:
         - "last_edited_user"
         - "last_edited_date"
     matViews:
-      - arcgis.geoquimica_concentrado_de_bateia_amostras
-      - arcgis.geoquimica_concentrado_de_bateia_analises_quimicas
-      - arcgis.geoquimica_concentrado_de_bateia_pivot_join
+      - arcgis.concentrado_de_bateia_amostras
+      - arcgis.concentrado_de_bateia_analises_quimicas
+      - arcgis.concentrado_de_bateia_pivot_join

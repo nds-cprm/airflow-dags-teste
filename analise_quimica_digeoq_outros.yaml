@@ -1,6 +1,6 @@
-name: "analise_quimica_rocha"
+name: "analise_quimica_outros"
 schedule: null
-description: "Dados de litogeoquímica"
+description: "Dados de análise química de mineral de minério"
 tags: 
   - "geoquimica"
   - "postgresql"
@@ -11,8 +11,8 @@ dagArgs: {
 etl:
   source:
     connectionName: null
-    schema: "geoquimica_prospectiva"
-    table: "resultados_analiticos_rocha"
+    schema: "degeo"
+    table: "outros_resultados_analiticos"
     primaryKeyColumn: "objectid"
     geometryColumn:
       xColumn: "longitude"
@@ -25,11 +25,11 @@ etl:
     connectionName: null
     schema: "geoquimica"
     surveyTable: 
-      name: "rocha_amostras"
+      name: "outros_amostras"
       primaryKeyColumn: "fid"
       geometryColumn: "geometry"
     assayTable:
-      name: "rocha_analises_quimicas"
+      name: "outros_analises_quimicas"
       indexColumns:
         - "amostra"
         - "analito"
@@ -47,6 +47,6 @@ etl:
         - "last_edited_user"
         - "last_edited_date"
     matViews:
-      - arcgis.rocha_amostras
-      - arcgis.rocha_analises_quimicas
-      - arcgis.rocha_pivot_join
+      - arcgis.outros_amostras
+      - arcgis.outros_analises_quimicas
+      - arcgis.outros_pivot_join

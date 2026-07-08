@@ -1,6 +1,6 @@
-name: "analise_quimica_mineral_minerio"
+name: "analise_quimica_sedimento_de_corrente"
 schedule: null
-description: "Dados de análise química de mineral de minério"
+description: "Dados de geoquímica de sedimento de corrente"
 tags: 
   - "geoquimica"
   - "postgresql"
@@ -11,8 +11,8 @@ dagArgs: {
 etl:
   source:
     connectionName: null
-    schema: "geoquimica_prospectiva"
-    table: "resultados_analiticos_mineral_minerio"
+    schema: "degeo"
+    table: "sedimento_de_corrente_resultados_analiticos"
     primaryKeyColumn: "objectid"
     geometryColumn:
       xColumn: "longitude"
@@ -25,11 +25,11 @@ etl:
     connectionName: null
     schema: "geoquimica"
     surveyTable: 
-      name: "mineral_minerio_amostras"
+      name: "sedimento_de_corrente_amostras"
       primaryKeyColumn: "fid"
       geometryColumn: "geometry"
     assayTable:
-      name: "mineral_minerio_analises_quimicas"
+      name: "sedimento_de_corrente_analises_quimicas"
       indexColumns:
         - "amostra"
         - "analito"
@@ -42,11 +42,12 @@ etl:
         - "lote"
         - "ra"
         - "metodo"
+        - "finalidade"
         - "created_user"
         - "created_date"
         - "last_edited_user"
         - "last_edited_date"
     matViews:
-      - arcgis.mineral_minerio_amostras
-      - arcgis.mineral_minerio_analises_quimicas
-      - arcgis.mineral_minerio_pivot_join
+      - arcgis.sedimento_de_corrente_amostras
+      - arcgis.sedimento_de_corrente_analises_quimicas
+      - arcgis.sedimento_de_corrente_pivot_join

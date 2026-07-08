@@ -11,8 +11,8 @@ dagArgs: {
 etl:
   source:
     connectionName: null
-    schema: "geoquimica_prospectiva"
-    table: "resultados_analiticos_concentrado_de_bateia"
+    schema: "degeo"
+    table: "concentrado_de_bateia_resultados_analiticos"
     primaryKeyColumn: "objectid"
     geometryColumn:
       xColumn: "longitude"

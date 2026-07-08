@@ -11,8 +11,8 @@ dagArgs: {
 etl:
   source:
     connectionName: null
-    schema: "geoquimica_prospectiva"
-    table: "resultados_analiticos_contagem_pintas_au"
+    schema: "degeo"
+    table: "contagem_au_resultados_analiticos"
     primaryKeyColumn: "objectid"
     geometryColumn:
       xColumn: "longitude"
@@ -44,6 +44,6 @@ etl:
         - "last_edited_user"
         - "last_edited_date"
     matViews:
-      - arcgis.contagem_pintas_au_amostras
-      - arcgis.contagem_pintas_au_analises
-      - arcgis.contagem_pintas_au_pivot_join
+      - arcgis.geoquimica_contagem_pintas_au_amostras
+      - arcgis.geoquimica_contagem_pintas_au_analises
+      - arcgis.geoquimica_contagem_pintas_au_pivot_join

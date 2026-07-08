@@ -11,8 +11,8 @@ dagArgs: {
 etl:
   source:
     connectionName: null
-    schema: "geoquimica_prospectiva"
-    table: "resultados_analiticos_mineralometria"
+    schema: "degeo"
+    table: "mineralometria_resultados_analiticos"
     primaryKeyColumn: "objectid"
     geometryColumn:
       xColumn: "longitude"
@@ -58,7 +58,7 @@ etl:
       primaryKeyColumn: "fid"
       geometryColumn: "geometry"
     assayTable:
-      name: "mineralometria_analises"
+      name: "mineralometria_resultados"
       indexColumns:
         - "amostra"
         - "analito"
@@ -72,7 +72,25 @@ etl:
         - "created_date"
         - "last_edited_user"
         - "last_edited_date"
+        - "finalidade"
+    weightTable:
+      name: "mineralometria_info_pesagem"
+      indexColumns:
+        - "amostra"
+        - "analito"
+      valueColumn: "valor"
+      excludedColumns: 
+        - "globalid"
+        - "lote"
+        - "ra"
+        - "metodo"
+        - "created_user"
+        - "created_date"
+        - "last_edited_user"
+        - "last_edited_date"
+        - "finalidade"
     matViews:
       - arcgis.mineralometria_amostras
-      - arcgis.mineralometria_analises
+      - arcgis.mineralometria_info_pesagem
+      - arcgis.mineralometria_resultados
       - arcgis.mineralometria_pivot_join

@@ -1,10 +1,11 @@
-name: "analise_mineralometrica"
+name: "digeoq_analise_mineralometrica"
 schedule: null
 description: "Dados de mineralometria"
 tags: 
   - "mineralometria"
   - "postgresql"
   - "ESRI"
+  - "digeoq"
 dagArgs: {
   # params: ""
 }

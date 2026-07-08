@@ -41,7 +41,7 @@ def analise_mineralometrica_etl():
     assay_sanitized = sanitize_assay_dataset(results["dataset"], results["assay_cols"], etl_conf)
     
     # write data
-    write_postgres(survey_sanitized, [weight_sanitized, assay_sanitized], etl_conf)
+    write_postgres(survey_sanitized, etl=etl_conf, assay_file=assay_sanitized, weight_file=weight_sanitized)
 
     
 _dag = analise_mineralometrica_etl()

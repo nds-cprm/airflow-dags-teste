@@ -11,7 +11,7 @@ log = logging.getLogger("airflow.task")
 
 
 @task()
-def write_postgres(survey_file, assay_file, etl: GeoquimicaETLConfig, survey_chunksize=5000, assay_chunksize=10000, **kwargs):
+def write_postgres(survey_file, assay_file, etl: GeoquimicaETLConfig, weight_file=None, survey_chunksize=5000, assay_chunksize=10000, **kwargs):
     import geopandas as gpd
     import pandas as pd
     from sqlalchemy import text
@@ -30,7 +30,7 @@ def write_postgres(survey_file, assay_file, etl: GeoquimicaETLConfig, survey_chu
             )
             
             # 'to_postgis' não funciona com method. Ver como fazer isso com 'to_sql' tradicional
-            logging.info("Gravando amostras...")
+            logging.info("Gravando amostras em %s.%s..." % (etl.destination.schema, etl.destination.surveyTable.name))
             ( 
             gpd.read_parquet(survey_file)
                 .to_postgis(
@@ -43,7 +43,7 @@ def write_postgres(survey_file, assay_file, etl: GeoquimicaETLConfig, survey_chu
                 )
             )
 
-            logging.info("Gravando análises...")
+            logging.info("Gravando análises em %s.%s..." % (etl.destination.schema, etl.destination.assayTable.name))
             (
             pd.read_parquet(assay_file)
                 .reset_index()
@@ -58,6 +58,23 @@ def write_postgres(survey_file, assay_file, etl: GeoquimicaETLConfig, survey_chu
                     # method="multi" # https://pandas.pydata.org/docs/user_guide/io.html#io-sql-method
                 )
             )
+
+            if weight_file:                 
+                logging.info("Gravando info de pesagem em %s.%s..." % (etl.destination.schema, etl.destination.weightTable.name))
+                (
+                pd.read_parquet(weight_file)
+                    .reset_index()
+                    .rename_axis("id")
+                    .to_sql(
+                        etl.destination.weightTable.name, 
+                        conn, 
+                        if_exists='append', 
+                        schema=etl.destination.schema, 
+                        index=False, 
+                        chunksize=assay_chunksize, 
+                        # method="multi" # https://pandas.pydata.org/docs/user_guide/io.html#io-sql-method
+                    )
+                )
 
         # Refresh MatView ()
         with conn.begin():

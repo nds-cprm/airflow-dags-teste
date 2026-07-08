@@ -2,6 +2,8 @@ import yaml
 
 from dataclasses import dataclass, field
 from typing import Tuple, Optional, Any, Union
+from warnings import warn
+
 
 @dataclass(kw_only=True)
 class Coordinates:
@@ -55,6 +57,7 @@ class DestinationETL:
     schema: str
     surveyTable: SurveyTable
     assayTable: AssayTable
+    weightTable: Optional[AssayTable]
     matViews: Optional[Tuple[str]]
 
 @dataclass(kw_only=True)
@@ -87,7 +90,15 @@ class GeoquimicaETLConfig:
         destination = etl.pop("destination")
         survey_table = SurveyTable(**destination.pop("surveyTable"))
         assay_table = AssayTable(**destination.pop("assayTable"))
-        destination = DestinationETL(surveyTable=survey_table, assayTable=assay_table, **destination)
+
+        try:
+            weight_table = AssayTable(**destination.pop("weightTable"))
+            
+        except KeyError:
+            warn("Weight table not exists")
+            weight_table = None
+
+        destination = DestinationETL(surveyTable=survey_table, assayTable=assay_table, weightTable=weight_table, **destination)
 
         return cls(source=source, destination=destination, **data)
 

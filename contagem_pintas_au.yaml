@@ -1,10 +1,11 @@
-name: "contagem_de_pintas_au"
+name: "digeoq_contagem_de_pintas_au"
 schedule: null
 description: "Dados de contagem de pintas de Au"
 tags: 
   - "mineralometria"
   - "postgresql"
   - "ESRI"
+  - "digeoq"
 dagArgs: {
   # params: ""
 }

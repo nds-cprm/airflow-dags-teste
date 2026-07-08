@@ -1,10 +1,11 @@
-name: "analise_quimica_rocha"
+name: "digeoq_analise_quimica_rocha"
 schedule: null
 description: "Dados de litogeoquímica"
 tags: 
   - "geoquimica"
   - "postgresql"
   - "ESRI"
+  - "digeoq"
 dagArgs: {
   # params: ""
 }

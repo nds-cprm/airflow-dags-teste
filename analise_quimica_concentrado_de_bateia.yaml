@@ -1,10 +1,11 @@
-name: "analise_quimica_concentrado_de_bateia"
+name: "digeoq_analise_quimica_concentrado_de_bateia"
 schedule: null
 description: "Dados de análise química de concentrado de bateia"
 tags: 
   - "geoquimica"
   - "postgresql"
   - "ESRI"
+  - "digeoq"
 dagArgs: {
   # params: ""
 }

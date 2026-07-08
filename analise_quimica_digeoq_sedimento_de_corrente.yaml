@@ -1,10 +1,11 @@
-name: "analise_quimica_sedimento_de_corrente"
+name: "digeoq_analise_quimica_sedimento_de_corrente"
 schedule: null
 description: "Dados de geoquímica de sedimento de corrente"
 tags: 
   - "geoquimica"
   - "postgresql"
   - "ESRI"
+  - "digeoq"
 dagArgs: {
   # params: ""
 }

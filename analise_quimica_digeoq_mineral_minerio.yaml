@@ -1,10 +1,11 @@
-name: "analise_quimica_mineral_minerio"
+name: "digeoq_analise_quimica_mineral_minerio"
 schedule: null
 description: "Dados de análise química de mineral de minério"
 tags: 
   - "geoquimica"
   - "postgresql"
   - "ESRI"
+  - "digeoq"
 dagArgs: {
   # params: ""
 }

@@ -43,7 +43,7 @@ def extract_bronze_table(etl: GeoquimicaETLConfig, **kwargs):
     dataset = export_parquet(sample_df, f"{etl.name}/bronze", f"{src_schema}_{src_table}.parquet")
 
     # recuperar colunas das tabelas de destino
-    conn_name = Variable.get("GEOSGB_GOLD_CONNECTION", default_var="geosgb_gold")
+    conn_name = etl.destination.connectionName
     hook = PostgresHook(postgres_conn_id=conn_name)
 
     # dst table

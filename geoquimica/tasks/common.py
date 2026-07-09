@@ -16,7 +16,7 @@ log = logging.getLogger("airflow.task")
 @task(multiple_outputs=True)
 def extract_bronze_table(etl: GeoquimicaETLConfig, **kwargs):
     # Leitura do banco
-    conn_name = Variable.get("GEOQUIMICA_SRC_DATABASE", default_var="geoq_valida")
+    conn_name = Variable.get("GEOQUIMICA_SRC_DATABASE", default_var=etl.source.connectionName)
     hook = PostgresHook(postgres_conn_id=conn_name)
 
     # src table

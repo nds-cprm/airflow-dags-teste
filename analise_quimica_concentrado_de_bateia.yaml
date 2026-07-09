@@ -11,7 +11,7 @@ dagArgs: {
 }
 etl:
   source:
-    connectionName: null
+    connectionName: geoquimica-consistencia-prod
     schema: "degeo"
     table: "concentrado_de_bateia_resultados_analiticos"
     primaryKeyColumn: "objectid"
@@ -23,7 +23,7 @@ etl:
       - name: "data_de_analise"
         format: "%d/%m/%Y"
   destination:
-    connectionName: null
+    connectionName: geobancao-dgm-prod
     schema: "geoquimica"
     surveyTable: 
       name: "concentrado_de_bateia_amostras"

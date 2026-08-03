@@ -13,8 +13,8 @@ from sgb.geobank.opensearch.templates import INDEX_BODY_TEMPLATE
 from sgb.geobank.oracle.functions import extract_data_from_oracle
 
 
-ALIAS_NAME = "litoestratigrafia_1m" 
-PARQUET_FILE_PATH = "/home/mota/vscode/airflow/airflow-spatial/data/tmp/litoestratigrafia_1000000/silver/litoestratigrafia_1000000_new.parquet"
+# ALIAS_NAME = "litoestratigrafia_1m" 
+# PARQUET_FILE_PATH = "/home/mota/vscode/airflow/airflow-spatial/data/tmp/litoestratigrafia_1000000/silver/litoestratigrafia_1000000_new.parquet"
 
 
 # Declaração clássica da DAG

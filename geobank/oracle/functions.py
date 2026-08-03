@@ -23,12 +23,12 @@ def _get_oracle_hook():
 
 def extract_data_from_oracle(**kwargs):
     oracledb.defaults.fetch_lobs = False
-    
+
     hook = _get_oracle_hook()
-    out_dir = get_bronze_out_dir("litoestratigrafia_1m")
+    out_dir = get_bronze_out_dir("litoestratigrafia_2.5m")
 
     # Consulta a litoestratigrafia
-    with open(BASE / "sql/litoestratigrafia_1M.sql", "r") as f:
+    with open(BASE / "sql/litoestratigrafia_2.5M.sql", "r") as f:
         sql_query = f.read()
 
     logger.info("Buscando tabela principal...")

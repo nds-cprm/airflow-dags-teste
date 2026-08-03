@@ -1,5 +1,6 @@
 select 
-    r169323.nextval fid,
+    -- r169323.nextval fid,
+    gu.OBJECTID AS fid,
     ue.id id_unidade_estratigrafica,
     ue.sigla,
     he.nome_pt hierarquia,
@@ -11,8 +12,9 @@ select
     ue.legenda,
     '1:' || to_char(be.valor, 'fm999G999G999') escala,
     wm.nome_mapa mapa,
-    monta_string('litoestratigrafia.ue_litologia', 'id_rocha', 'id_unidade_estratigrafica', null, 'bibliotecas.bb_rocha', ue.id) litotipos,
+    --monta_string('litoestratigrafia.ue_litologia', 'id_rocha', 'id_unidade_estratigrafica', null, 'bibliotecas.bb_rocha', ue.id) litotipos,
     ri.id range,
+    ri.idade_min_unidade idade_min,
     ri.idade_max_unidade idade_max,
     eol.nome_pt eon_min,
     eou.nome_pt eon_max,
@@ -22,11 +24,9 @@ select
     siu.nome_pt sistema_max,
     epl.nome_pt epoca_min,
     epu.nome_pt epoca_max,
-    monta_siglas_historicas(ue.id) siglas_historicas,
-    gu.shape,
-    '2500000' grupo,
-    ri.idade_min_unidade idade_min,
-    gu.rowid record_hash
+    --monta_siglas_historicas(ue.id) siglas_historicas,
+    sde.st_asbinary(gu.shape) geometry
+    --'2500000' grupo,
 from litoestratigrafia.ue_geometria_unidade gu,
     litoestratigrafia.ue_unidade_estratigrafica ue,
     bibliotecas.bb_hierarquia_estratigrafica he,
@@ -64,4 +64,4 @@ and siu.id(+) = ri.sistema_max
 and epl.id(+) = ri.sistema_min
 and epu.id(+) = ri.sistema_max
 and wm.cod_mapa = gu.id_mapa
-and wm.cod_escala = be.id;
+and wm.cod_escala = be.id

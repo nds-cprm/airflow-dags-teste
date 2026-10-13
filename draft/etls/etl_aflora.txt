@@ -1,0 +1,301 @@
+create or replace 
+package        etl is
+  function monta_string(p_parent_table in varchar2, p_parent_join_column in varchar2, p_filter_column in varchar2, p_child_table in varchar2, p_id in number) return varchar2;
+  procedure carrega_layer(p_reset in boolean default false);
+  procedure carrega_ilustracoes(p_cod_projeto in number, p_cod_folha in number default null);
+end etl;
+
+create or replace 
+package body        etl is
+  function monta_string(p_parent_table in varchar2, p_parent_join_column in varchar2, p_filter_column in varchar2, p_child_table in varchar2, p_id in number) return varchar2 is
+    v_sql varchar2(1000);
+    v_delimiter varchar2(2);
+    v_string varchar2(1000);
+    v_result varchar2(4000);
+    type result_record_type is ref cursor;
+    c_results result_record_type;
+  begin
+    v_sql := 'select distinct t2.nome_pt from '|| p_parent_table||' t1, '|| p_child_table||' t2 where t1.'|| p_filter_column||' = '||p_id||' and t2.id = t1.'|| p_parent_join_column||' order by 1';
+    open c_results for v_sql;
+    loop
+		  fetch c_results into v_string;
+	      exit when c_results%notfound;
+        v_result :=  v_result || v_delimiter || v_string;
+        v_delimiter := ', ';
+    end loop;
+    close c_results;
+    return v_result;
+  end;
+
+  procedure carrega_layer(p_reset in boolean default false) is
+    cursor c_dados_trunc is
+      select r93.nextval fid,
+             af.id id_afloramento,
+             decode(af.id_categoria, 1, 'Mainframe', 'Oracle')  origem,
+             bmg.nome_pt metodo_geoposicionamento,
+             toponimia,
+             mun.nome municipio,
+             mun.uf,
+             bge.nome geologo,
+             data_cadastro,
+             bta.nome_pt tipo_afloramento,
+             af.descricao,
+             af.numero_campo,
+             monta_string('aflora.af_rocha', 'id_tipo_rocha', 'id_afloramento', 'bibliotecas.bb_rocha', af.id) rochas,
+             bsu.nome sureg,
+             ppr.nome projeto,
+             lbc.codigo codigo_folha,
+             lbc.nome folha,
+             af.shape,
+             sde.st_geometry_operators.st_x_f(af.shape),
+             sde.st_geometry_operators.st_y_f(af.shape),
+             'WGS84'
+       from aflora.af_afloramento af,
+            aflora.af_bb_tipo_afloramento bta,
+            bibliotecas.bb_metodo_geoposicionamento bmg,
+            bibliotecas.bb_sureg bsu,
+            bibliotecas.bb_geologo bge,
+            projetos.pr_folha pfl,
+            layers.base_cartografica lbc,
+            projetos.pr_projeto ppr,
+            layers.municipios mun
+       where af.id_categoria <> 3
+       and bta.id(+) = af.id_tipo_afloramento
+       and bmg.id(+) = af.id_metodo_geoposicionamento
+       and bsu.id(+) = af.id_sureg
+       and bge.id(+) = af.id_geologo
+       and pfl.id(+) = af.id_folha
+       and lbc.id(+) = pfl.id_base_cartografica
+       and ppr.id(+) = pfl.id_projeto
+       --and af.id not in (434397, 434402, 434614)
+       --and ppr.id <= 200
+       and sde.st_relation_operators.st_within_f(af.shape, mun.shape) = 1;
+
+    cursor c_dados(p_max_aflo_id in number) is
+      select r93.nextval fid,
+             af.id id_afloramento,
+             decode(af.id_categoria, 1, 'Mainframe', 'Oracle')  origem,
+             bmg.nome_pt metodo_geoposicionamento,
+             toponimia,
+             mun.nome municipio,
+             mun.uf,
+             bge.nome geologo,
+             data_cadastro,
+             bta.nome_pt tipo_afloramento,
+             af.descricao,
+             af.numero_campo,
+             monta_string('aflora.af_rocha', 'id_tipo_rocha', 'id_afloramento', 'bibliotecas.bb_rocha', af.id) rochas,
+             bsu.nome sureg,
+             ppr.nome projeto,
+             lbc.codigo codigo_folha,
+             lbc.nome folha,
+             af.shape,
+             sde.st_geometry_operators.st_x_f(af.shape),
+             sde.st_geometry_operators.st_y_f(af.shape),
+             'WGS84'
+       from aflora.af_afloramento af,
+            aflora.af_bb_tipo_afloramento bta,
+            bibliotecas.bb_metodo_geoposicionamento bmg,
+            bibliotecas.bb_sureg bsu,
+            bibliotecas.bb_geologo bge,
+            projetos.pr_folha pfl,
+            layers.base_cartografica lbc,
+            projetos.pr_projeto ppr,
+            layers.municipios mun
+       where af.id_categoria <> 3
+       and af.id > p_max_aflo_id
+       --and af.id not in (select id_afloramento from aflora.af_layer)
+       and bta.id(+) = af.id_tipo_afloramento
+       and bmg.id(+) = af.id_metodo_geoposicionamento
+       and bsu.id(+) = af.id_sureg
+       and bge.id(+) = af.id_geologo
+       and pfl.id(+) = af.id_folha
+       and lbc.id(+) = pfl.id_base_cartografica
+       and ppr.id(+) = pfl.id_projeto
+       --and af.id not in (434397, 434402, 434614)
+       --and ppr.id between 201 and 400
+       and sde.st_relation_operators.st_within_f(af.shape, mun.shape) = 1;
+
+    cursor c_dados_munc(p_max_aflo_id in number) is
+      select r93.nextval fid,
+             af.id id_afloramento,
+             decode(af.id_categoria, 1, 'Mainframe', 'Oracle')  origem,
+             bmg.nome_pt metodo_geoposicionamento,
+             toponimia,
+             null,
+             null,
+             bge.nome geologo,
+             data_cadastro,
+             bta.nome_pt tipo_afloramento,
+             af.descricao,
+             af.numero_campo,
+             monta_string('aflora.af_rocha', 'id_tipo_rocha', 'id_afloramento', 'bibliotecas.bb_rocha', af.id) rochas,
+             bsu.nome sureg,
+             ppr.nome projeto,
+             lbc.codigo codigo_folha,
+             lbc.nome folha,
+             af.shape,
+             sde.st_geometry_operators.st_x_f(af.shape),
+             sde.st_geometry_operators.st_y_f(af.shape),
+             'WGS84'
+     from aflora.af_afloramento af,
+          aflora.af_bb_tipo_afloramento bta,
+          bibliotecas.bb_metodo_geoposicionamento bmg,
+          bibliotecas.bb_sureg bsu,
+          bibliotecas.bb_geologo bge,
+          projetos.pr_folha pfl,
+          layers.base_cartografica lbc,
+          projetos.pr_projeto ppr
+      where af.id_categoria <> 3
+      and af.id > p_max_aflo_id
+      and af.id not in (select id_afloramento from aflora.af_layer)
+      and bta.id(+) = af.id_tipo_afloramento
+      and bmg.id(+) = af.id_metodo_geoposicionamento
+      and bsu.id(+) = af.id_sureg
+      and bge.id(+) = af.id_geologo
+      and pfl.id(+) = af.id_folha
+      and lbc.id(+) = pfl.id_base_cartografica
+      and ppr.id(+) = pfl.id_projeto;
+    type layer_ttype is table of aflora.af_layer%rowtype;
+    layer_tab layer_ttype := layer_ttype();
+    v_max_id aflora.af_afloramento.id%type;
+  begin
+    select max(id_afloramento)
+    into v_max_id
+    from aflora.af_layer;
+    if p_reset then
+      execute immediate 'truncate table aflora.af_layer';
+	    open c_dados_trunc;
+  		loop
+    	  fetch c_dados_trunc
+    	  bulk collect into layer_tab limit 10000;
+    	  exit when layer_tab.count = 0;
+	      forall i in layer_tab.first .. layer_tab.last
+	      insert into aflora.af_layer values layer_tab(i);
+	      commit;
+		  end loop;
+      close c_dados_trunc;
+	else
+	    open c_dados(v_max_id);
+  		loop
+    	  fetch c_dados
+    	  bulk collect into layer_tab limit 10000;
+    	  exit when layer_tab.count = 0;
+	      forall i in layer_tab.first .. layer_tab.last
+	      insert into aflora.af_layer values layer_tab(i);
+	      commit;
+		  end loop;
+  		close c_dados;
+	    forall i in layer_tab.first .. layer_tab.last
+	    insert into aflora.af_layer values layer_tab(i);
+	    commit;
+    end if;
+
+	  -- Carrega os afloramentos que não estão dentro de nenhum município.
+    open c_dados_munc(v_max_id);
+ 	  loop
+   	  fetch c_dados_munc
+   	  bulk collect into layer_tab limit 10000;
+   	  exit when layer_tab.count = 0;
+      forall i in layer_tab.first .. layer_tab.last
+      insert into aflora.af_layer values layer_tab(i);
+      commit;
+	  end loop;
+ 	  close c_dados_munc;
+  end;
+
+PROCEDURE carrega_ilustracoes(p_cod_projeto IN NUMBER, p_cod_folha IN NUMBER DEFAULT NULL) IS
+  CURSOR c_ilustracoes IS
+	SELECT i.cod_ilustracao, i.cod_afloramento, upper(trim(i.nome_antigo)) nome_antigo, f.id_base_cartografica cod_folha, lower(substr(trim(i.nome_antigo), length(trim(i.nome_antigo))-3, length(trim(i.nome_antigo)))) extensao
+	FROM AF_ILUSTRACOES i,
+		   AF_AFLORAMENTO l,
+		   PROJETOS.PR_FOLHA f
+	WHERE f.id_base_cartografica = nvl((select id
+                                      from layers.base_cartografica
+                                       where replace(codigo, '.', '-') in (select replace(codigo, '.', '-')
+                                                                           from bibliotecas.bb_base_cartografica
+                                                                           where id = p_cod_folha)), f.id_base_cartografica)
+	AND f.id_projeto = p_cod_projeto
+  AND l.id_folha = f.id
+	AND i.cod_afloramento = l.id
+	AND trim(i.name) IS NULL
+	AND trim(i.nome_antigo) IS NOT NULL;
+  v_bfile    bfile;
+  v_blob     blob;
+  v_filename VARCHAR2(1000);
+  v_cod_afloramento AF_ILUSTRACOES.cod_afloramento%TYPE;
+  v_cod_ilustracao  AF_ILUSTRACOES.cod_ilustracao%TYPE;
+  v_nome_ilustracao AF_ILUSTRACOES.nome_antigo%TYPE;
+  v_cod_folha       PROJETOS.PR_FOLHA.id_base_cartografica%TYPE;
+
+  v_erro VARCHAR2(500);
+  v_mime_type VARCHAR2(500);
+  v_file_exception EXCEPTION;
+  v_format_exception EXCEPTION;
+  PRAGMA EXCEPTION_INIT(v_file_exception, -22288);
+BEGIN
+  DELETE FROM AF_LOG_CARGA_ILUSTRACOES;
+  COMMIT;
+  FOR r_ilustracoes IN c_ilustracoes LOOP
+    BEGIN
+	  v_cod_afloramento := r_ilustracoes.cod_afloramento;
+    v_cod_ilustracao  := r_ilustracoes.cod_ilustracao;
+	  v_cod_folha       := r_ilustracoes.cod_folha;
+	  v_nome_ilustracao := r_ilustracoes.nome_antigo;
+
+    IF ltrim(r_ilustracoes.extensao, '.') in ('jpg','bmp','tif','png','jpeg','tiff') THEN
+	    IF ltrim(r_ilustracoes.extensao, '.') in ('jpg','jpeg') THEN
+		    v_mime_type := 'image/pjpeg';
+		  ELSIF ltrim(r_ilustracoes.extensao, '.') = 'bmp' THEN
+		    v_mime_type := 'image/bmp';
+		  ELSIF ltrim(r_ilustracoes.extensao, '.') in ('tif','tiff') THEN
+		    v_mime_type := 'image/tiff';
+		END IF;
+
+	  v_filename := 'A'||v_cod_afloramento||'_I'||v_cod_ilustracao||'.'||ltrim(r_ilustracoes.extensao, '.');
+	 	v_bfile := BFILENAME('BFILES_DIR', r_ilustracoes.nome_antigo);
+    dbms_lob.fileopen(v_bfile);
+	  	INSERT INTO geobank.uploads
+	  	VALUES(v_filename,v_mime_type,dbms_lob.getlength(v_bfile),'ascii',SYSDATE,'BLOB',EMPTY_BLOB())
+	  	RETURNING blob_content INTO v_blob;
+     	dbms_lob.loadfromfile(v_blob, v_bfile, dbms_lob.getlength(v_bfile));
+	  	dbms_lob.fileclose(v_bfile);
+
+	  	UPDATE AF_ILUSTRACOES
+	  	SET name = v_filename
+ 	    WHERE cod_ilustracao = v_cod_ilustracao;
+
+	    /*v_bfile := BFILENAME('BFILES_ORGN_DIR', r_ilustracoes.nome_antigo);
+      dbms_lob.fileopen(v_bfile);
+	  	UPDATE AF_ILUSTRACOES
+	  	SET name = v_filename,
+	        foto_original = EMPTY_BLOB()
+ 	    WHERE cod_ilustracao = v_cod_ilustracao
+	  	returning foto_original INTO v_blob;
+      dbms_lob.loadfromfile(v_blob, v_bfile, dbms_lob.getlength(v_bfile));
+      dbms_lob.fileclose(v_bfile);*/
+	  ELSE
+	    RAISE v_format_exception;
+	  END IF;
+    EXCEPTION
+	  WHEN v_format_exception THEN
+      INSERT INTO AF_LOG_CARGA_ILUSTRACOES
+	    VALUES(v_cod_ilustracao, v_nome_ilustracao, v_cod_folha, DEFAULT, 'Formato de arquivo não suportado.');
+	  WHEN v_file_exception THEN
+      v_erro := SQLERRM;
+		  dbms_lob.fileclose(v_bfile);
+      INSERT INTO AF_LOG_CARGA_ILUSTRACOES
+	    VALUES(v_cod_ilustracao, v_nome_ilustracao, v_cod_folha, DEFAULT, v_erro);
+    WHEN OTHERS THEN
+      v_erro := SQLERRM;
+		  dbms_lob.fileclose(v_bfile);
+      INSERT INTO AF_LOG_CARGA_ILUSTRACOES
+	    VALUES(v_cod_ilustracao, v_nome_ilustracao, v_cod_folha, DEFAULT, v_erro);
+    END;
+  END LOOP;
+  COMMIT;
+EXCEPTION
+  WHEN OTHERS THEN
+    dbms_output.put_line(sqlerrm);
+END;
+end etl;

@@ -27,11 +27,8 @@ INDEX_BODY_TEMPLATE = {
             },
             "properties": {
                 "properties": {
-                    ID_COLUMN: {
+                     "id": {
                         "type": "integer"
-                    },
-                    "id_uni_estratigrafica": {
-                        "type": "integer",
                     },
                     "sigla": {
                         "type": "keyword",
@@ -40,13 +37,12 @@ INDEX_BODY_TEMPLATE = {
                         "type": "keyword",
                     }, 
                     "nome": {
-                        "type": "text",
-                        "analyzer": "brazilian"
+                        "type": "keyword",
                     }, 
-                    "amb_tecto": {
+                    "ambiente_tectonico": {
                         "type": "keyword",
                     },
-                    "sub_amb_tectonico": {
+                    "sub_ambiente_tectonico": {
                         "type": "keyword",
                     },
                     "sigla_pai": {
@@ -66,46 +62,53 @@ INDEX_BODY_TEMPLATE = {
                         "type": "keyword",
                     }, 
                     "litotipos": {
-                        "type": "text",
-                        "analyzer": "brazilian"
+                        "type": "keyword",
                     }, 
                     "range": {
-                        "type": "text",
-                        "analyzer": "brazilian"
-                    },
-                    "idade_min": {
-                        "type": "float",
-                    }, # Real (0.0)
-                    "idade_max": {
-                        "type": "float",
-                    }, 
-                    "eon_min": {
                         "type": "keyword",
                     },
-                    "eon_max": {
-                        "type": "keyword",
+                    "idade": {
+                        "min": {
+                            "type": "float",
+                        },
+                        "max": {
+                            "type": "float",
+                        }
                     },
-                    "era_min": {
-                        "type": "keyword",
+                    "eon":{
+                        "min": {
+                            "type": "keyword",
+                        },
+                        "max": {
+                            "type": "keyword",
+                        }
                     },
-                    "era_max": {
-                        "type": "keyword",
+                    "era": {
+                        "min": {
+                            "type": "keyword",
+                        },
+                        "max": {
+                            "type": "keyword",
+                        }
                     },
-                    "sistema_min": {
-                        "type": "keyword",
-                    }, 
-                    "sistema_max": {
-                        "type": "keyword",
+                    "sistema": {
+                        "min": {
+                            "type": "keyword",
+                        },
+                        "max": {
+                            "type": "keyword",
+                        }
                     },
-                    "epoca_min": {
-                        "type": "keyword",
-                    }, 
-                    "epoca_max": {
-                        "type": "keyword",
-                    }, 
+                    "epoca": {
+                        "min": {
+                            "type": "keyword",
+                        },
+                        "max": {
+                            "type": "keyword",
+                        }
+                    },
                     "siglas_historicas": {
-                        "type": "text",
-                        "analyzer": "brazilian"
+                        "type": "keyword",
                     }, 
                     "grupo": {
                         "type": "keyword",

@@ -1,0 +1,543 @@
+create or replace 
+package etl is
+  function monta_string(p_parent_table in varchar2, p_parent_join_column in varchar2, p_filter_column in varchar2, p_alternative_column in varchar2, p_child_table in varchar2, p_id in number) return varchar2;
+  function monta_materiais_analisados(p_parent_table in varchar2, p_parent_join_column in varchar2, p_filter_column in varchar2, p_alternative_column in varchar2, p_child_table in varchar2, p_id in number) return varchar2;
+  procedure carrega_layer(p_reset in boolean default false);
+  procedure carrega_layer_geoserver;
+  procedure carrega_metodos(p_reset in boolean default false);
+end etl;
+
+create or replace 
+package body               etl is
+  function monta_string(p_parent_table in varchar2, p_parent_join_column in varchar2, p_filter_column in varchar2, p_alternative_column in varchar2, p_child_table in varchar2, p_id in number) return varchar2 is
+    v_sql varchar2(1000);
+    v_delimiter varchar2(2);
+    v_string varchar2(1000);
+    v_result varchar2(4000);
+    type result_record_type is ref cursor;
+    c_results result_record_type;
+  begin
+    v_sql := 'select distinct t2.' || nvl(p_alternative_column, 'nome_pt') || ' from '|| p_parent_table||' t1, '|| p_child_table||' t2 where t1.'|| p_filter_column||' = '||p_id||' and t2.cod_metodo = t1.'|| p_parent_join_column||' order by 1';
+	open c_results for v_sql;
+    loop
+		fetch c_results into v_string;
+	    exit when c_results%notfound;
+        v_result :=  v_result || v_delimiter || v_string;
+        v_delimiter := ', ';
+    end loop;
+    close c_results;
+    return v_result;
+  end;
+
+  function monta_materiais_analisados(p_parent_table in varchar2, p_parent_join_column in varchar2, p_filter_column in varchar2, p_alternative_column in varchar2, p_child_table in varchar2, p_id in number) return varchar2 is
+    v_sql varchar2(1000);
+    v_delimiter varchar2(2);
+    v_string varchar2(1000);
+    v_result varchar2(4000);
+    type result_record_type is ref cursor;
+    c_results result_record_type;
+  begin
+    v_sql := 'select distinct t2.' || nvl(p_alternative_column, 'nome_pt') || ' from '|| p_parent_table||' t1, '|| p_child_table||' t2 where t1.'|| p_filter_column||' = '||p_id||' and t2.codigo = t1.'|| p_parent_join_column||' and trim(t2.' || nvl(p_alternative_column, 'nome_pt')||') is not null order by 1';
+	open c_results for v_sql;
+    loop
+		fetch c_results into v_string;
+	    exit when c_results%notfound;
+        v_result :=  v_result || v_delimiter || v_string;
+        v_delimiter := ', ';
+    end loop;
+    close c_results;
+    return v_result;
+  end;
+
+  procedure carrega_layer(p_reset in boolean default false) is
+    v_materiais varchar2(2000);
+    cursor c_dados is
+      select r61802.nextval,
+           g.id,
+           g.amostra,
+           g.toponimia,
+           r.nome_pt rocha,
+           m.nome_pt metodo_geoposicionamento,
+           n.nivel_acesso,
+           g.erro_locacional,
+           monta_string('geocronologia.gr_metodo', 'cod_metodo', 'cod_cadastro_geral', 'metodo', 'bibliotecas.bb_metodos', g.id) metodos,
+           g.shape,
+           null materiais_analisados,
+           sde.st_geometry_operators.st_x_f(g.shape),
+           sde.st_geometry_operators.st_y_f(g.shape),
+           'WGS84'
+      from gr_cadastro_geral g, bibliotecas.bb_rocha r, bibliotecas.bb_metodo_geoposicionamento m, gr_bb_nivel_acesso n
+      where g.id_rocha = r.id
+      and g.id_metodo_geoposicionamento = m.id
+      and g.id_nivel_acesso = n.cod_nivel_acesso;
+    type layer_ttype is table of geocronologia.gr_layer%rowtype;
+    layer_tab layer_ttype := layer_ttype();
+  begin
+    if p_reset then
+        execute immediate 'truncate table geocronologia.gr_layer';
+    end if;
+    open c_dados;
+    loop
+      fetch c_dados
+      bulk collect into layer_tab limit 10000;
+      exit when layer_tab.count = 0;
+      forall i in layer_tab.first .. layer_tab.last
+        insert into geocronologia.gr_layer values layer_tab(i);
+      commit;
+    end loop;
+    close c_dados;
+    
+    carrega_metodos(true);
+    
+    for r_feicoes in (select id from gr_layer) loop
+      v_materiais := monta_materiais_analisados('geocronologia.gr_layer', 'id', 'id', 'material_analisado', 'geocronologia.gr_idade_metodos', r_feicoes.id);
+      update gr_layer l
+      set materiais_analisados = v_materiais
+      where id = r_feicoes.id;
+      commit;
+    end loop;
+  end;
+  
+  procedure carrega_layer_geoserver is
+    -- Parâmetros de controle.
+    l_fetch_limit constant pls_integer := 1000;  -- leitura de registros por lote.
+    l_commit_batch constant pls_integer := 1000; -- commits de inserts por lote.
+  
+    type t_amostras is table of geocronologia.gr_layer%rowtype;
+    v_amostras t_amostras;
+  
+    type t_sdo is table of mdsys.sdo_geometry;
+    v_sdos t_sdo;
+    
+    l_batch_start number;
+    l_batch_end number;
+  begin
+    loop
+      -- Lê em blocos de até <l_fetch_limit> registros.
+      select *
+      bulk collect into v_amostras
+      from geocronologia.gr_layer l
+      where dbms_crypto.hash(typ => 2, src => utl_raw.cast_to_raw(l.id || '|' || l.amostra || '|' || l.rocha)) not in (select g.record_hash from geoserver.gr_layer g)
+      and rownum <= l_fetch_limit;
+  
+      exit when v_amostras.count = 0;
+  
+      v_sdos := t_sdo();
+      v_sdos.extend(v_amostras.count);
+  
+      -- Conversão SDE para SDO.
+      for i in 1 .. v_amostras.count loop
+        begin
+          select sdo_util.from_wkbgeometry(sde.st_asbinary(v_amostras(i).shape)) into v_sdos(i) from dual;
+          v_sdos(i).sdo_srid := 4326;
+        exception
+          when others then
+            v_sdos(i) := null; -- Ignora as geometrias problemáticas.
+        end;
+      end loop;
+  
+      -- Inserção e commit em lotes de <l_commit_batch>.
+      l_batch_start := 1;
+      while l_batch_start <= v_amostras.count loop
+        l_batch_end := least(l_batch_start + l_commit_batch - 1, v_amostras.count);
+        forall i in l_batch_start .. l_batch_end save exceptions
+          insert into geoserver.gr_layer
+          values (
+            v_amostras(i).id,
+            v_amostras(i).id,
+            v_amostras(i).amostra,
+            v_amostras(i).toponimia,
+            v_amostras(i).rocha,
+            v_amostras(i).metodo_geoposicionamento,
+            v_amostras(i).nivel_acesso,
+            v_amostras(i).erro_locacional,
+            v_amostras(i).metodos,
+            v_amostras(i).materiais_analisados,
+            v_amostras(i).x,
+            v_amostras(i).y,
+            v_amostras(i).datum,
+            v_sdos(i),
+            dbms_crypto.hash(typ => 2, src => utl_raw.cast_to_raw(v_amostras(i).id || '|' || v_amostras(i).amostra || '|' || v_amostras(i).rocha))
+          );
+        commit;
+        l_batch_start := l_batch_end + 1;
+      end loop;
+  
+      -- Limpa a memória.
+      v_amostras.delete;
+      v_sdos.delete;
+    end loop;
+  exception
+    when others then
+      dbms_output.put_line(sqlerrm);
+      rollback;
+  end;  
+
+  procedure carrega_metodos(p_reset in boolean default false) is
+    cursor c_amostras is
+      select id, amostra
+      from geocronologia.gr_layer;
+    
+    cursor c_metodos (p_cod_cadastro_geral number) is
+      select distinct vi.metodo||nvl2(idade,' ('||idade||' m.a.)',null) metodo, codigo, idade, cod_ref, titulo_ref, ano_ref
+      from (
+      select bbmet.metodo metodo, cod_ia_isocrona codigo,idade_iso idade, ref.cod_ref_bibliogr cod_ref, to_char(titulo) titulo_ref, ano ano_ref
+      from gr_ia_isocrona iso,
+           gr_metodo met,
+           gr_bb_interpretacao int,
+           bibliotecas.bb_metodos bbmet,
+           gr_ref_bibliogr ref
+      where met.cod_cadastro_geral = p_cod_cadastro_geral
+      and iso.cod_geocron_metodo = met.cod_geocron_metodo
+      and bbmet.cod_metodo = met.cod_metodo
+      and iso.interpretacao = int.cod_interpretacao(+)
+      and iso.cod_ref_bibliogr = ref.cod_ref_bibliogr(+)
+      union all
+      select bbmet.metodo metodo, cod_ia_pbevap codigo, valor_idade_agrupada idade, ref.cod_ref_bibliogr cod_ref, to_char(titulo) titulo_ref, ano ano_ref
+      from gr_ia_pbevap pbe,
+           gr_metodo met,
+           gr_bb_interpretacao int,
+           bibliotecas.bb_metodos bbmet,
+           gr_ref_bibliogr ref
+      where met.cod_cadastro_geral = p_cod_cadastro_geral
+      and pbe.cod_geocron_metodo = met.cod_geocron_metodo
+      and bbmet.cod_metodo = met.cod_metodo
+      and pbe.cod_interpretacao = int.cod_interpretacao(+)
+      and pbe.cod_ref_bibliogr = ref.cod_ref_bibliogr(+)
+      union all
+      select bbmet.metodo metodo, cod_ia_concordia codigo, intercepto_sup idade, ref.cod_ref_bibliogr cod_ref, to_char(titulo) titulo_ref, ano ano_ref
+      from gr_ia_concordia con,
+           gr_metodo met,
+           gr_bb_interpretacao int,
+           bibliotecas.bb_metodos bbmet,
+           gr_ref_bibliogr ref
+      where met.cod_cadastro_geral = p_cod_cadastro_geral
+      and con.cod_geocron_metodo = met.cod_geocron_metodo
+      and bbmet.cod_metodo = met.cod_metodo
+      and con.cod_interpretacao = int.cod_interpretacao(+)
+      and con.cod_ref_bibliogr = ref.cod_ref_bibliogr(+)
+      union all
+      select bbmet.metodo metodo,
+           cod_id_simples codigo, idade_calculada idade, ref.cod_ref_bibliogr cod_ref, to_char(titulo) titulo_ref, ano ano_ref
+      from gr_id_simples sim,
+           gr_metodo met,
+         gr_bb_interpretacao int,
+         bibliotecas.bb_metodos bbmet,
+         gr_ref_bibliogr ref
+      where met.cod_cadastro_geral = p_cod_cadastro_geral
+      and sim.cod_geocron_metodo = met.cod_geocron_metodo
+      and bbmet.cod_metodo = met.cod_metodo
+      and sim.cod_interpretacao = int.cod_interpretacao(+)
+      and sim.cod_ref_bibliogr = ref.cod_ref_bibliogr(+)
+      union all
+      select bbmet.metodo metodo, cod_ia_frequencia codigo, idade_max idade, ref.cod_ref_bibliogr cod_ref, to_char(titulo) titulo_ref, ano ano_ref
+      from gr_ia_frequencia con,
+           gr_metodo met,
+           gr_bb_interpretacao int,
+           bibliotecas.bb_metodos bbmet,
+           gr_ref_bibliogr ref
+      where  met.cod_cadastro_geral = p_cod_cadastro_geral
+      and  con.cod_geocron_metodo = met.cod_geocron_metodo
+      and  bbmet.cod_metodo = met.cod_metodo
+      and con.interpretacao_id_min = int.cod_interpretacao(+)
+      and con.cod_ref_bibliogr = ref.cod_ref_bibliogr(+) ) vi
+      order by 1;
+  
+    cursor c_autor (p_cod_ref number) is
+      select autor
+      from (select cod_autor_ref_bibliogr, bbaut.autor
+            from gr_autor_ref_bibliogr refaut, gr_bb_autor bbaut
+            where refaut.cod_ref_bibliogr = p_cod_ref
+            and bbaut.cod_autor = refaut.cod_autor
+            order by refaut.cod_autor_ref_bibliogr)
+       where rownum = 1;
+  
+    cursor c_autores (p_cod_ref number) is
+      select bbaut.autor
+      from gr_autor_ref_bibliogr refaut,
+         gr_bb_autor bbaut
+      where refaut.cod_ref_bibliogr = p_cod_ref
+      and bbaut.cod_autor = refaut.cod_autor
+      order by refaut.cod_autor_ref_bibliogr;
+
+    v_objectid     number;
+	  v_ano		       varchar2(2000);
+    v_autores	     varchar2(2000);
+    v_bibliografia varchar2(2000);
+    v_tmp  		     varchar2(5);
+  begin
+    if p_reset then
+        execute immediate 'truncate table geocronologia.gr_idade_metodos';
+    end if;
+    for r_amostras in c_amostras loop
+      v_tmp := '';
+      for r_metodos in c_metodos(r_amostras.id) loop
+	    if trim(r_metodos.metodo) is not null then
+		  v_ano := '';
+		  v_autores := '';
+		  v_bibliografia := '';
+		  v_tmp := '';
+		  for r_autor in c_autor(r_metodos.cod_ref) loop
+		    v_ano := r_metodos.ano_ref;
+			v_bibliografia := trim(r_autor.autor) || ' et. al. ' || r_metodos.ano_ref || '.';
+		  end loop;
+		  for r_autores in c_autores(r_metodos.cod_ref) loop
+		    v_autores := v_autores||v_tmp||trim(r_autores.autor);
+			v_tmp := ', ';
+		  end loop;
+		end if;
+      end loop;
+
+	  select r60802.nextval
+	  into v_objectid
+	  from dual;
+
+	  for r_temp in (
+        select bm.metodo metodo_analitico,
+			   valor_idade_agrupada idade_max,
+			   erro_idade_agrupada erro_max,
+			   interpretacao interpretacao_max,
+			   null idade_min,
+			   null erro_min,
+			   null interpretacao_min,
+			   material material_analisado,
+			   qtd_graos num_graos,
+			   num_razoes,
+			   usd,
+			   null tipo_concordia,
+			   null tipo_isocrona,
+			   null mswd,
+			   null num_pontos,
+			   null padrao,
+         null programa_reducao,
+			   null razao_inicial,
+			   null erro_razao_inicial,
+			   null epsilon_isocrona,
+			   null epsilon_0,
+			   null epsilon_t,
+			   null idade_epsilon_t,
+			   laboratorio,
+			   analista,
+			   caminho_arquivo arquivo,
+			   g.name grafico,
+			   'PBEVAP' grupo_metodo
+		from gr_ia_pbevap ia_pb,
+			 gr_metodo mt1,
+			 bibliotecas.bb_metodos bm,
+			 gr_layer l,
+			 gr_bb_interpretacao i,
+			 gr_bb_material m,
+			 gr_bb_laboratorio b,
+			 gr_grafico g
+		where l.id = r_amostras.id
+		and ia_pb.cod_geocron_metodo = mt1.cod_geocron_metodo(+)
+		and ia_pb.cod_laboratorio = b.cod_laboratorio(+)
+		and l.id = mt1.cod_cadastro_geral
+		and mt1.cod_metodo = bm.cod_metodo
+		and i.cod_interpretacao(+) = ia_pb.cod_interpretacao
+		and m.cod_material(+) = ia_pb.cod_material_analisado
+		and g.cod_grafico(+) = ia_pb.cod_grafico
+		union
+        select bm.metodo metodo_analitico,
+			   intercepto_sup idade_max,
+			   erro_intercepto_sup erro_max,
+			   imax.interpretacao interpretacao_max,
+			   intercepto_inf idade_min,
+			   erro_intercepto_inf erro_min,
+			   imin.interpretacao interpretacao_min,
+			   material material_analisado,
+			   null num_graos,
+			   null num_razoes,
+			   null usd,
+			   tipo_concordia,
+			   null tipo_isocrona,
+			   chi_squared_mswd mswd,
+			   num_spots_fracao num_pontos,
+			   stand padrao,
+         programa programa_reducao,
+			   null razao_inicial,
+			   null erro_razao_inicial,
+			   null epsilon_isocrona,
+			   null epsilon_0,
+			   null epsilon_t,
+			   null idade_epsilon_t,
+			   laboratorio,
+			   analista,
+			   caminho_arquivo arquivo,
+			   g.name grafico,
+			   'CONCORDIA' grupo_metodo
+		from gr_ia_concordia ia_cc,
+			 gr_metodo mt1,
+			 bibliotecas.bb_metodos bm,
+			 gr_layer l,
+			 gr_bb_interpretacao imax,
+			 gr_bb_interpretacao imin,
+			 gr_bb_material m,
+			 gr_bb_stand s,
+			 gr_bb_programa p,
+			 gr_bb_tipo_concordia t,
+			 gr_bb_laboratorio b,
+			 gr_grafico g
+		where l.id = r_amostras.id
+		and ia_cc.cod_geocron_metodo = mt1.cod_geocron_metodo(+)
+		and ia_cc.cod_stand = s.cod_stand(+)
+		and ia_cc.cod_programa = p.cod_programa(+)
+		and ia_cc.cod_laboratorio = b.cod_laboratorio(+)
+		and l.id = mt1.cod_cadastro_geral
+		and mt1.cod_metodo = bm.cod_metodo
+		and imax.cod_interpretacao(+) = ia_cc.cod_interpretacao
+		and imin.cod_interpretacao(+) = ia_cc.interpretacao_interc_inf
+		and m.cod_material(+) = ia_cc.cod_material
+		and t.cod_tipo_concordia(+) = ia_cc.cod_tipo_concordia
+		and g.cod_grafico(+) = ia_cc.cod_grafico
+		union
+        select bm.metodo metodo_analitico,
+			   idade_max idade_max,
+			   erro_idade_max erro_max,
+			   imax.interpretacao interpretacao_max,
+			   idade_min idade_min,
+			   erro_idade_min erro_min,
+			   imin.interpretacao interpretacao_min,
+			   material material_analisado,
+			   null num_graos,
+			   null num_razoes,
+			   null usd,
+			   null tipo_concordia,
+			   null tipo_isocrona,
+			   null mswd,
+			   null num_pontos,
+			   stand padrao,
+         null programa_reducao,
+			   null razao_inicial,
+			   null erro_razao_inicial,
+			   null epsilon_isocrona,
+			   null epsilon_0,
+			   null epsilon_t,
+			   null idade_epsilon_t,
+			   laboratorio,
+			   analista,
+			   caminho_arquivo arquivo,
+			   g.name grafico,
+			   'FREQUENCIA' grupo_metodo
+		from gr_ia_frequencia ia_fq,
+			 gr_metodo mt1,
+			 bibliotecas.bb_metodos bm,
+			 gr_layer l,
+			 gr_bb_interpretacao imax,
+			 gr_bb_interpretacao imin,
+			 gr_bb_material m,
+			 gr_bb_stand s,
+			 gr_bb_laboratorio b,
+			 gr_grafico g
+		where l.id = r_amostras.id
+		and ia_fq.cod_geocron_metodo = mt1.cod_geocron_metodo(+)
+		and ia_fq.cod_stand = s.cod_stand(+)
+		and ia_fq.cod_laboratorio = b.cod_laboratorio(+)
+		and l.id = mt1.cod_cadastro_geral
+		and mt1.cod_metodo = bm.cod_metodo
+		and imax.cod_interpretacao(+) = ia_fq.interpretacao_id_max
+		and imin.cod_interpretacao(+) = ia_fq.interpretacao_id_min
+		and m.cod_material(+) = ia_fq.cod_material
+		and g.cod_grafico(+) = ia_fq.cod_grafico
+		union
+        select bm.metodo metodo_analitico,
+			   idade_iso idade_max,
+			   erro_idade_iso erro_max,
+			   i.interpretacao interpretacao_max,
+			   null idade_min,
+			   null erro_min,
+			   null interpretacao_min,
+			   null material_analisado,
+			   null num_graos,
+			   null num_razoes,
+			   null usd,
+			   null tipo_concordia,
+			   tipo_isocrona,
+			   mswd,
+			   num_pontos,
+			   null padrao,
+         null programa_reducao,
+			   razao_inicial,
+			   erro_razao_inicial,
+			   epsilon_isocrona,
+			   null epsilon_0,
+			   null epsilon_t,
+			   null idade_epsilon_t,
+			   laboratorio,
+			   analista,
+			   caminho_arquivo arquivo,
+			   g.name grafico,
+			   'ISOCRONA' grupo_metodo
+		from gr_ia_isocrona ia_is,
+			 gr_metodo mt1,
+			 bibliotecas.bb_metodos bm,
+			 gr_layer l,
+			 gr_bb_interpretacao i,
+			 gr_bb_tipo_isocrona t,
+			 gr_bb_laboratorio b,
+			 gr_grafico g
+		where l.id = r_amostras.id
+		and ia_is.cod_geocron_metodo = mt1.cod_geocron_metodo(+)
+		and ia_is.cod_laboratorio = b.cod_laboratorio(+)
+		and l.id = mt1.cod_cadastro_geral
+		and mt1.cod_metodo = bm.cod_metodo
+		and i.cod_interpretacao(+) = ia_is.interpretacao
+		and t.cod_tipo_isocrona(+) = ia_is.cod_tipo_isocrona
+		and g.cod_grafico(+) = ia_is.cod_grafico
+	  	union
+        select bm.metodo metodo_analitico,
+			   idade_calculada idade_max,
+			   erro erro_max,
+			   interpretacao interpretacao_max,
+			   null idade_min,
+			   null erro_min,
+			   null interpretacao_min,
+			   material material_analisado,
+			   null num_graos,
+			   null num_razoes,
+			   null usd,
+			   null tipo_concordia,
+			   null tipo_isocrona,
+			   null mswd,
+			   null num_pontos,
+			   null padrao,
+         null programa_reducao,
+			   null razao_inicial,
+			   null erro_razao_inicial,
+			   null epsilon_isocrona,
+			   valor_epsilon_0_mi epsilon_0,
+			   valor_epsilon_t epsilon_t,
+			   idade_ref_eps idade_epsilon_t,
+			   laboratorio,
+			   analista,
+			   caminho_arquivo,
+			   null grafico,
+			   'SIMPLES' grupo_metodo
+		from gr_id_simples ia_sp,
+			 gr_metodo mt1,
+			 bibliotecas.bb_metodos bm,
+			 gr_layer l,
+			 gr_bb_interpretacao i,
+			 gr_bb_material m,
+			 gr_bb_laboratorio b
+		where l.id = r_amostras.id
+		and ia_sp.cod_geocron_metodo = mt1.cod_geocron_metodo(+)
+		and ia_sp.cod_laboratorio = b.cod_laboratorio(+)
+		and l.id = mt1.cod_cadastro_geral
+		and mt1.cod_metodo = bm.cod_metodo
+		and i.cod_interpretacao(+) = ia_sp.cod_interpretacao
+		and m.cod_material(+) = ia_sp.cod_material) loop
+
+		select r60802.nextval
+	  	into v_objectid
+	  	from dual;
+
+		insert into geocronologia.gr_idade_metodos values(v_objectid, r_amostras.id, r_amostras.amostra, r_temp.metodo_analitico, r_temp.idade_max, r_temp.erro_max, r_temp.interpretacao_max, r_temp.idade_min, r_temp.erro_min, r_temp.interpretacao_min,
+			   									   		  r_temp.material_analisado, r_temp.num_graos, r_temp.num_razoes, r_temp.usd, r_temp.tipo_concordia, r_temp.tipo_isocrona, r_temp.mswd, r_temp.num_pontos, r_temp.padrao, r_temp.programa_reducao, r_temp.razao_inicial,
+														  r_temp.erro_razao_inicial, r_temp.epsilon_isocrona, r_temp.epsilon_0, r_temp.epsilon_t, r_temp.idade_epsilon_t, v_bibliografia, v_autores, v_ano, r_temp.laboratorio, r_temp.analista, r_temp.arquivo, r_temp.grafico, r_temp.grupo_metodo);
+
+	  end loop;
+    end loop;
+	commit;
+  end;
+end etl;

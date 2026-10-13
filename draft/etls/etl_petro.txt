@@ -1,0 +1,333 @@
+create or replace 
+package etl as
+  function monta_string(p_parent_table in varchar2, p_parent_join_column in varchar2, p_filter_column in varchar2, p_child_table in varchar2, p_id in number) return varchar2;
+  function monta_string_minerais(p_id in number) return varchar2;
+  procedure carrega_layer(p_reset in boolean default true);
+  procedure carrega_layer_geoserver;
+  procedure carrega_ilustracoes_petro(p_cod_projeto in number, p_cod_folha in number default null);
+end etl;
+
+create or replace 
+PACKAGE BODY "ETL" as
+  function monta_string(p_parent_table in varchar2, p_parent_join_column in varchar2, p_filter_column in varchar2, p_child_table in varchar2, p_id in number) return varchar2 is
+    v_sql varchar2(1000);
+    v_delimiter varchar2(2);
+    v_string varchar2(1000);
+    v_result varchar2(4000);
+    type result_record_type is ref cursor;
+    c_results result_record_type;
+  begin
+    v_sql := 'select distinct t2.nome_pt from '|| p_parent_table||' t1, '|| p_child_table||' t2 where t1.'|| p_filter_column||' = '||p_id||' and t2.id = t1.'|| p_parent_join_column||' order by 1';
+    open c_results for v_sql;
+    loop
+		  fetch c_results into v_string;
+	      exit when c_results%notfound;
+        v_result :=  v_result || v_delimiter || v_string;
+        v_delimiter := ', ';
+    end loop;
+    close c_results;
+    return v_result;
+  end;
+  
+  function monta_string_minerais(p_id in number) return varchar2 is
+    v_sql varchar2(1000);
+    v_delimiter varchar2(2);
+    v_string varchar2(1000);
+    v_string_dummy varchar2(1000);
+    v_result varchar2(4000);
+    type result_record_type is ref cursor;
+    c_results result_record_type;
+  begin
+    v_sql := 'select distinct des_mineral || ''('' || percentual_mineral || '')'', percentual_mineral from petrografia.mv_minerais mv where mv.codigo_lamina = ' || p_id || ' and to_number(replace(replace(replace(percentual_mineral, ''%'', null), ''<'', null), ''>'', null)) > 0 order by to_number(replace(replace(replace(percentual_mineral, ''%'', null), ''<'', null), ''>'', null)) desc';
+    dbms_output.put_line(v_sql);
+    open c_results for v_sql;
+    loop
+		  fetch c_results into v_string, v_string_dummy;
+	      exit when c_results%notfound;
+        v_result :=  v_result || v_delimiter || v_string;
+        v_delimiter := ', ';
+    end loop;
+    close c_results;
+    return v_result;
+  end;
+  
+	procedure carrega_layer(p_reset in boolean default true) is
+	  type layer_ttype is table of petrografia.pet_layer%rowtype;
+	  layer_tab layer_ttype := layer_ttype();
+	begin
+	  execute immediate 'truncate table petrografia.pet_layer';
+	  select r62144.nextval fid,
+	     pc.cod_amostra,
+			 pc.cod_afloramento,
+			 pc.cod_rocha,
+			 pc.num_campo_amostra,
+	     pcl.cod_lamina,
+			 pcl.num_campo_lamina,
+	     pcl.des_notas notas,
+			 pbp.des_petrografo petrografo,
+			 pp.nome,
+	     nvl2(bbc.nome, bbc.codigo || ' - ' || bbc.nome, bbc.codigo) base_cartografica,
+	     bts.des_tp_secao tipo_secao,
+			 bgi.nome_pt grau_intemperismo,
+			 nvl2(pm.tamanho_amostra_cm, pm.tamanho_amostra_cm || ' cm', null) tamanho_amostra,
+			 bcf.nome_pt cor_rx_fresca,
+			 bci.nome_pt cor_rx_intemperizada,
+			 gmin.nome_pt || ' ' || gmin.tamanho granulacao_minima,
+			 gmed.nome_pt || ' ' || gmed.tamanho granulacao_media,
+			 gmax.nome_pt || ' ' || gmax.tamanho granulacao_maxima,
+			 bs.des_selecionamento selecionamento,
+			 bca.des_consist_amostra consistencia_amostra,
+			 bc.des_contato contato,
+       null cod_classificacao,
+       monta_string('petrografia.pet_classificacao', 'cod_nm_protolito', 'cod_lamina', 'bibliotecas.bb_rocha', nvl(pcl.cod_lamina, 0)) protolito,
+       monta_string('petrografia.pet_classificacao', 'cod_nm_rocha', 'cod_lamina', 'bibliotecas.bb_rocha', nvl(pcl.cod_lamina, 0)) rocha,
+			 'p_cod_amostra='||pc.cod_amostra||'&p_cod_rocha='||pc.cod_rocha||'&p_cod_afloramento='||pc.cod_afloramento,
+       a.shape,
+       bsu.nome || nvl2(pcl.caixa_arquivo, ' (Caixa/Arquivo nº ' || pcl.caixa_arquivo || ')', null) local_lamina,
+       pcl.lote_lamina,
+       pcl.num_lab_lamina,
+       pcl.ficha,
+       etl.monta_string_minerais(pcl.cod_lamina) minerais_identificados,
+       sde.st_geometry_operators.st_x_f(a.shape),
+       sde.st_geometry_operators.st_y_f(a.shape),
+       'WGS84'
+	  bulk collect into layer_tab
+	  from petrografia.pet_cadastro pc,
+	       petrografia.pet_cadastro_lamina pcl,
+         bibliotecas.bb_sureg bsu,
+	       aflora.af_afloramento a,
+	       petrografia.pet_bb_petrografo pbp,
+		     projetos.pr_projeto pp,
+		     projetos.pr_folha pf,
+	       layers.base_cartografica bbc,
+	       bibliotecas.bb_tipo_secao bts,
+		     petrografia.pet_mesoscopia pm,
+	       bibliotecas.bb_grau_intemperismo bgi,
+		     bibliotecas.bb_cor bcf,
+		     bibliotecas.bb_cor bci,
+		     bibliotecas.bb_granulometria gmin,
+		     bibliotecas.bb_granulometria gmed,
+		     bibliotecas.bb_granulometria gmax,
+		     bibliotecas.bb_selecionamento bs,
+		     bibliotecas.bb_consistencia_amostra bca,
+		     bibliotecas.bb_contato bc
+    where pc.cod_amostra = pcl.cod_amostra
+    and pcl.cod_arm_secao = bsu.id
+	  and pc.cod_afloramento = a.id
+	  and a.id_folha = pf.id(+)
+	  and pf.id_projeto = pp.id(+)
+	  and pcl.nm_petrografo = pbp.cod_petrografo(+)
+	  and pc.cod_folha = bbc.id(+)
+	  and pcl.cod_tp_secao = bts.cod_tp_secao(+)
+	  and pm.cod_amostra(+) = pc.cod_amostra
+	  and bgi.id(+) = pm.cod_grau_intemperismo
+	  and bcf.id(+) = pm.cod_cor_rx_fresca
+	  and bci.id(+) = pm.cod_cor_rx_intemperizada
+	  and pm.cod_granulacao_min = gmin.id(+)
+	  and pm.cod_granulacao_med = gmed.id(+)
+	  and pm.cod_granulacao_max = gmax.id(+)
+	  and bs.cod_selecionamento(+)= pm.cod_selecao
+	  and bca.cod_consist_amostra(+) = pm.cod_consist_amostra
+	  and bc.cod_contato(+) = pm.cod_contato;
+    forall i in layer_tab.first .. layer_tab.last
+	    insert into petrografia.pet_layer values layer_tab(i);
+	  commit;
+    carrega_layer_geoserver;
+	end;
+  
+  PROCEDURE carrega_ilustracoes_petro(p_cod_projeto IN NUMBER, p_cod_folha IN NUMBER DEFAULT NULL) IS
+    CURSOR c_ilustracoes IS
+      SELECT i.cod_micro_ilustracao cod_ilustracao, i.cod_lamina, upper(trim(i.nome_antigo)) nome_antigo, f.id_base_cartografica cod_folha, lower(substr(trim(i.nome_antigo), length(trim(i.nome_antigo))-3, length(trim(i.nome_antigo)))) extensao
+      FROM PETROGRAFIA.PET_MICRO_ILUSTRACAO i,
+           PETROGRAFIA.PET_CADASTRO_LAMINA l,
+           PETROGRAFIA.PET_CADASTRO c,
+           AFLORA.AF_AFLORAMENTO a,
+           PROJETOS.PR_FOLHA f,
+           LAYERS.BASE_CARTOGRAFICA b
+      WHERE c.cod_folha = nvl((select id
+                               from layers.base_cartografica
+                               where replace(codigo, '.', '-') in (select replace(codigo, '.', '-')
+                                                                   from bibliotecas.bb_base_cartografica
+                                                                   where id = p_cod_folha)), f.id_base_cartografica)
+      AND l.cod_lamina = i.cod_lamina
+      AND l.cod_amostra = c.cod_amostra
+      AND c.cod_afloramento = a.id
+      AND f.id_projeto = p_cod_projeto
+      AND a.id_folha = f.id
+      AND b.id = c.cod_folha
+      AND trim(i.name) IS NULL
+      AND trim(i.nome_antigo) IS NOT NULL;
+    v_bfile    bfile;
+    v_blob     blob;
+    v_filename VARCHAR2(1000);
+    v_cod_lamina 		  PETROGRAFIA.PET_CADASTRO_LAMINA.cod_lamina%TYPE;
+    v_cod_ilustracao  PETROGRAFIA.PET_MICRO_ILUSTRACAO.cod_micro_ilustracao%TYPE;
+    v_nome_ilustracao VARCHAR2(255);
+    v_cod_folha      LAYERS.BASE_CARTOGRAFICA.id%TYPE;
+  
+    v_erro VARCHAR2(500);
+    v_mime_type VARCHAR2(500);
+    v_file_exception EXCEPTION;
+    v_format_exception EXCEPTION;
+    PRAGMA EXCEPTION_INIT(v_file_exception, -22288);
+  BEGIN
+    DELETE FROM PETROGRAFIA.PET_LOG_CARGA_ILUSTRACOES;
+    COMMIT;
+    FOR r_ilustracoes IN c_ilustracoes LOOP
+      BEGIN
+        v_cod_lamina := r_ilustracoes.cod_lamina;
+        v_cod_ilustracao  := r_ilustracoes.cod_ilustracao;
+        v_cod_folha       := r_ilustracoes.cod_folha;
+        v_nome_ilustracao := r_ilustracoes.nome_antigo;
+  
+        IF ltrim(r_ilustracoes.extensao, '.') in ('jpg','bmp','tif','png','jpeg','tiff') THEN
+          IF ltrim(r_ilustracoes.extensao, '.') in ('jpg','jpeg') THEN
+            v_mime_type := 'image/pjpeg';
+          ELSIF ltrim(r_ilustracoes.extensao, '.') = 'bmp' THEN
+            v_mime_type := 'image/bmp';
+          ELSIF ltrim(r_ilustracoes.extensao, '.') in ('tif','tiff') THEN
+            v_mime_type := 'image/tiff';
+        END IF;
+  
+        v_filename := 'L'||v_cod_lamina||'_I'||v_cod_ilustracao||'.'||ltrim(upper(r_ilustracoes.extensao), '.');
+        v_bfile := BFILENAME('BFILES_DIR', r_ilustracoes.nome_antigo);
+        dbms_lob.fileopen(v_bfile);
+        INSERT INTO geobank.uploads
+        VALUES(v_filename,v_mime_type,dbms_lob.getlength(v_bfile),'ascii',SYSDATE,'BLOB',EMPTY_BLOB())
+        RETURNING blob_content INTO v_blob;
+        dbms_lob.loadfromfile(v_blob, v_bfile, dbms_lob.getlength(v_bfile));
+        dbms_lob.fileclose(v_bfile);
+  
+        UPDATE PETROGRAFIA.PET_MICRO_ILUSTRACAO
+        SET name = v_filename
+        WHERE cod_micro_ilustracao = v_cod_ilustracao;
+  
+        /*v_bfile := BFILENAME('BFILES_ORGN_DIR', r_ilustracoes.nome_antigo);
+        dbms_lob.fileopen(v_bfile);
+        UPDATE PETROGRAFIA.PET_MICRO_ILUSTRACAO
+        SET name = v_filename,
+            foto_original = EMPTY_BLOB()
+        WHERE cod_micro_ilustracao = v_cod_ilustracao
+        returning foto_original INTO v_blob;
+        dbms_lob.loadfromfile(v_blob, v_bfile, dbms_lob.getlength(v_bfile));
+        dbms_lob.fileclose(v_bfile);*/
+      ELSE
+        RAISE v_format_exception;
+      END IF;
+      EXCEPTION
+      WHEN v_format_exception THEN
+        INSERT INTO PETROGRAFIA.PET_LOG_CARGA_ILUSTRACOES
+        VALUES(v_cod_ilustracao, v_nome_ilustracao, v_cod_folha, DEFAULT, 'Formato de arquivo não suportado.');
+      WHEN v_file_exception THEN
+        v_erro := SQLERRM;
+        dbms_lob.fileclose(v_bfile);
+        INSERT INTO PETROGRAFIA.PET_LOG_CARGA_ILUSTRACOES
+        VALUES(v_cod_ilustracao, v_nome_ilustracao, v_cod_folha, DEFAULT, v_erro);
+      WHEN OTHERS THEN
+        v_erro := SQLERRM;
+        dbms_lob.fileclose(v_bfile);
+        INSERT INTO PETROGRAFIA.PET_LOG_CARGA_ILUSTRACOES
+        VALUES(v_cod_ilustracao, v_nome_ilustracao, v_cod_folha, DEFAULT, v_erro);
+      END;
+    END LOOP;
+    COMMIT;
+  EXCEPTION
+    WHEN OTHERS THEN
+      dbms_output.put_line(sqlerrm);
+  END;
+  
+  PROCEDURE carrega_layer_geoserver IS
+    -- Parâmetros de controle.
+    l_fetch_limit CONSTANT PLS_INTEGER := 1000;  -- Leitura de registros por lote.
+    l_commit_batch CONSTANT PLS_INTEGER := 1000;  -- Commits de inserts por lote.
+  
+    TYPE t_amostras IS TABLE OF petrografia.pet_layer%rowtype;
+    v_amostras t_amostras;
+  
+    TYPE t_sdo IS TABLE OF mdsys.SDO_GEOMETRY;
+    v_sdos t_sdo;
+    
+    l_batch_start NUMBER;
+    l_batch_end NUMBER;
+  BEGIN
+    geoserver.p_truncate_table('geoserver.pet_layer');
+    LOOP
+      -- Lê em blocos de até <l_fetch_limit> registros.
+      SELECT *
+      BULK COLLECT INTO v_amostras
+      FROM petrografia.pet_layer l
+      WHERE l.cod_amostra NOT IN (SELECT g.cod_amostra FROM geoserver.pet_layer g)
+      AND ROWNUM <= l_fetch_limit;
+  
+      EXIT WHEN v_amostras.COUNT = 0;
+  
+      v_sdos := t_sdo();
+      v_sdos.EXTEND(v_amostras.COUNT);
+  
+      -- Conversão SDE para SDO.
+      FOR i IN 1 .. v_amostras.COUNT LOOP
+        BEGIN
+          SELECT sdo_util.from_wkbgeometry(sde.st_asbinary(v_amostras(i).shape)) INTO v_sdos(i) FROM dual;
+          v_sdos(i).sdo_srid := 4326;
+        EXCEPTION
+          WHEN OTHERS THEN
+            v_sdos(i) := null; -- Ignora as geometrias problemáticas.
+        END;
+      END LOOP;
+  
+      -- Inserção e commit em lotes de <l_commit_batch>.
+      l_batch_start := 1;
+      WHILE l_batch_start <= v_amostras.COUNT LOOP
+        l_batch_end := least(l_batch_start + l_commit_batch - 1, v_amostras.COUNT);
+        FORALL i IN l_batch_start .. l_batch_end SAVE EXCEPTIONS
+          INSERT /*+ APPEND */ INTO geoserver.pet_layer
+          VALUES (
+            v_amostras(i).cod_amostra,
+            v_amostras(i).cod_amostra,
+            v_amostras(i).cod_afloramento,
+            v_amostras(i).cod_rocha,
+            v_amostras(i).num_campo_amostra,
+            v_amostras(i).cod_lamina,
+            v_amostras(i).num_campo_lamina,
+            v_amostras(i).notas,
+            v_amostras(i).petrografo,
+            v_amostras(i).projeto,
+            v_amostras(i).base_cartografica,
+            v_amostras(i).tipo_secao,
+            v_amostras(i).grau_intemperismo,
+            v_amostras(i).tamanho_amostra,
+            v_amostras(i).cor_rx_fresca,
+            v_amostras(i).cor_rx_intemperizada,
+            v_amostras(i).granulacao_minima,
+            v_amostras(i).granulacao_media,
+            v_amostras(i).granulacao_maxima,
+            v_amostras(i).selecionamento,
+            v_amostras(i).consistencia_amostra,
+            v_amostras(i).contato,
+            v_amostras(i).cod_classificacao,
+            v_amostras(i).protolito,
+            v_amostras(i).rocha,
+            v_amostras(i).local_lamina,
+            v_amostras(i).lote_lamina,
+            v_amostras(i).num_lab_lamina,
+            v_amostras(i).ficha,
+            v_amostras(i).minerais_identificados,
+            v_amostras(i).link,
+            v_amostras(i).x,
+            v_amostras(i).y,
+            v_amostras(i).datum,
+            v_sdos(i)
+          );
+        COMMIT;
+        l_batch_start := l_batch_end + 1;
+      END LOOP;
+  
+      -- Limpa a memória.
+      v_amostras.delete;
+      v_sdos.delete;
+    END LOOP;
+  EXCEPTION
+    WHEN OTHERS THEN
+      ROLLBACK;
+  END;  
+end etl;

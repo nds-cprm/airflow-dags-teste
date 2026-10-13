@@ -1,0 +1,187 @@
+create or replace 
+package etl is
+  function monta_string(p_parent_table in varchar2, p_parent_column in varchar2, p_filter_column in varchar2, p_id in number, p_delimiter varchar2) return varchar2;
+  procedure carrega_layer(p_reset in boolean default false);
+  procedure carrega_layer_sem_coordenadas;
+  procedure carrega_layer_geoserver;
+end etl;
+
+create or replace 
+package body etl is
+  function monta_string(p_parent_table in varchar2, p_parent_column in varchar2, p_filter_column in varchar2, p_id in number, p_delimiter varchar2) return varchar2 is
+    v_sql varchar2(1000);
+    v_delimiter varchar2(10);
+    v_string varchar2(4000);
+    v_result varchar2(4000);
+    type result_record_type is ref cursor;
+    c_results result_record_type;
+  begin
+    if p_delimiter = ', ' then
+      v_sql := 'select distinct lower(trim(replace(t1.'||p_parent_column||', ''  '', '' ''))) from '|| p_parent_table||' t1 where t1.'|| p_filter_column||' = '||p_id||' order by 1';
+    else
+      v_sql := 'select replace(t1.'||p_parent_column||', ''  '', '' '') from '|| p_parent_table||' t1 where t1.'|| p_filter_column||' = '||p_id||' order by sequencia';
+    end if;
+    open c_results for v_sql;
+    loop
+		  fetch c_results into v_string;
+	      exit when c_results%notfound;
+        v_result :=  v_result || v_delimiter || v_string;
+        v_delimiter := p_delimiter;
+    end loop;
+    close c_results;
+    return v_result;
+  end;
+
+  procedure carrega_layer(p_reset in boolean default false) is
+    type layer_ttype is table of paleo.pl_layer%rowtype;
+    layer_tab layer_ttype := layer_ttype();
+  begin
+    if p_reset then
+      execute immediate 'truncate table paleo.pl_layer';
+    end if;
+    select r114.nextval, id, data_atualizacao, fonte, sigla_geologo, caderneta_afloramento, numero_afloramento, distrito, localidade,
+           modo_ocorrencia, numero_laboratorio, furo_sondagem, profundidade_sondagem, amostra_calha, testemunho, topo_testemunho,
+           base_testemunho, unidade_bioestratigrafica, unidade_litoestratigrafica, unidade_cronoestratigrafica, litologia,
+           vestigios_organicos, ambiente_deposicao, observacao, registro_exemplar, instituicao, taxon, sistematica, material,
+           status_exemplar, coletor, analista, referencia_bibliografica, identificacao,
+           monta_string('paleo.pl_filiacao', 'nome', 'id_ocorrencia', o.id, ', ') filiacoes,
+           monta_string('paleo.pl_conteudo', 'nome', 'id_ocorrencia', o.id, ', ') conteudos,
+           monta_string('paleo.pl_macrofossil', 'nome', 'id_ocorrencia', o.id, ', ') macrofosseis,
+           monta_string('paleo.pl_microfossil', 'nome', 'id_ocorrencia', o.id, ', ') microfosseis, shape,
+           sde.st_geometry_operators.st_x_f(shape),
+           sde.st_geometry_operators.st_y_f(shape),
+           'WGS84'
+    bulk collect into layer_tab
+    from pl_ocorrencia o
+	  where o.shape is not null
+    and sde.st_geometry_operators.st_x_f(shape) <> 33;
+    forall i in layer_tab.first .. layer_tab.last
+    insert into paleo.pl_layer values layer_tab(i);
+    commit;
+    carrega_layer_sem_coordenadas;
+  end;
+
+  procedure carrega_layer_sem_coordenadas is
+    type layer_ttype is table of paleo.pl_layer_sem_coordenadas%rowtype;
+    layer_tab layer_ttype := layer_ttype();
+  begin
+    execute immediate 'truncate table paleo.pl_layer_sem_coordenadas';
+    select id, data_atualizacao, fonte, sigla_geologo, caderneta_afloramento, numero_afloramento, distrito, localidade,
+           modo_ocorrencia, numero_laboratorio, furo_sondagem, profundidade_sondagem, amostra_calha, testemunho, topo_testemunho,
+           base_testemunho, unidade_bioestratigrafica, unidade_litoestratigrafica, unidade_cronoestratigrafica, litologia,
+           vestigios_organicos, ambiente_deposicao, observacao, registro_exemplar, instituicao, taxon, sistematica, material,
+           status_exemplar, coletor, analista, referencia_bibliografica, identificacao,
+           monta_string('paleo.pl_filiacao', 'nome', 'id_ocorrencia', o.id, ', ') filiacoes,
+           monta_string('paleo.pl_conteudo', 'nome', 'id_ocorrencia', o.id, ', ') conteudos,
+           monta_string('paleo.pl_macrofossil', 'nome', 'id_ocorrencia', o.id, ', ') macrofosseis,
+           monta_string('paleo.pl_microfossil', 'nome', 'id_ocorrencia', o.id, ', ') microfosseis
+    bulk collect into layer_tab
+    from pl_ocorrencia o
+	  where o.shape is null;
+    forall i in layer_tab.first .. layer_tab.last
+    insert into paleo.pl_layer_sem_coordenadas values layer_tab(i);
+    commit;
+  end;
+  
+  procedure carrega_layer_geoserver is
+    -- Parâmetros de controle.
+    l_fetch_limit constant pls_integer := 1000;  -- leitura de registros por lote.
+    l_commit_batch constant pls_integer := 1000;  -- commits de inserts por lote.
+  
+    type t_ocorrencias is table of paleo.pl_layer%rowtype;
+    v_ocorrencias t_ocorrencias;
+  
+    type t_sdo is table of mdsys.sdo_geometry;
+    v_sdos t_sdo;
+    
+    l_batch_start number;
+    l_batch_end number;
+  begin
+    geoserver.p_truncate_table('geoserver.pl_layer');
+    loop
+      -- Lê em blocos de até <l_fetch_limit> registros.
+      select *
+      bulk collect into v_ocorrencias
+      from paleo.pl_layer l
+      where l.id not in (select g.id from geoserver.pl_layer g)
+      and rownum <= l_fetch_limit;
+  
+      exit when v_ocorrencias.count = 0;
+  
+      v_sdos := t_sdo();
+      v_sdos.extend(v_ocorrencias.count);
+  
+      -- Conversão SDE para SDO.
+      for i in 1 .. v_ocorrencias.count loop
+        begin
+          select sdo_util.from_wkbgeometry(sde.st_asbinary(v_ocorrencias(i).shape)) into v_sdos(i) from dual;
+          v_sdos(i).sdo_srid := 4326;
+        exception
+          when others then
+            v_sdos(i) := null; -- Ignora as geometrias problemáticas.
+        end;
+      end loop;
+  
+      -- Inserção e commit em lotes de <l_commit_batch>.
+      l_batch_start := 1;
+      while l_batch_start <= v_ocorrencias.count loop
+        l_batch_end := least(l_batch_start + l_commit_batch - 1, v_ocorrencias.count);
+        forall i in l_batch_start .. l_batch_end save exceptions
+          insert /*+ append */ into geoserver.pl_layer
+          values (
+            v_ocorrencias(i).id,
+            v_ocorrencias(i).id,
+            v_ocorrencias(i).data_atualizacao,
+            v_ocorrencias(i).fonte,
+            v_ocorrencias(i).sigla_geologo,
+            v_ocorrencias(i).caderneta_afloramento,
+            v_ocorrencias(i).numero_afloramento,
+            v_ocorrencias(i).distrito,
+            v_ocorrencias(i).localidade,
+            v_ocorrencias(i).modo_ocorrencia,
+            v_ocorrencias(i).numero_laboratorio,
+            v_ocorrencias(i).furo_sondagem,
+            v_ocorrencias(i).profundidade_sondagem,
+            v_ocorrencias(i).amostra_calha,
+            v_ocorrencias(i).testemunho,
+            v_ocorrencias(i).topo_testemunho,
+            v_ocorrencias(i).base_testemunho,
+            v_ocorrencias(i).unidade_bioestratigrafica,
+            v_ocorrencias(i).unidade_litoestratigrafica,
+            v_ocorrencias(i).unidade_cronoestratigrafica,
+            v_ocorrencias(i).litologia,
+            v_ocorrencias(i).vestigios_organicos,
+            v_ocorrencias(i).ambiente_deposicao,
+            v_ocorrencias(i).observacao,
+            v_ocorrencias(i).registro_exemplar,
+            v_ocorrencias(i).instituicao,
+            v_ocorrencias(i).taxon,
+            v_ocorrencias(i).sistematica,
+            v_ocorrencias(i).material,
+            v_ocorrencias(i).status_exemplar,
+            v_ocorrencias(i).coletor,
+            v_ocorrencias(i).analista,
+            v_ocorrencias(i).referencia_bibliografica,
+            v_ocorrencias(i).identificacao,
+            v_ocorrencias(i).filiacoes,
+            v_ocorrencias(i).conteudos,
+            v_ocorrencias(i).macrofosseis,
+            v_ocorrencias(i).microfosseis,
+            v_ocorrencias(i).x,
+            v_ocorrencias(i).y,
+            v_ocorrencias(i).datum,
+            v_sdos(i)
+          );
+        commit;
+        l_batch_start := l_batch_end + 1;
+      end loop;
+  
+      -- Limpa a memória.
+      v_ocorrencias.delete;
+      v_sdos.delete;
+    end loop;
+  exception
+    when others then
+      rollback;
+  end;  
+end etl;

@@ -6,7 +6,7 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 from slugify import slugify
 
 from sgb.common import export_parquet
-from sgb.common.postgres import get_postgres_table_colums
+from sgb.common.postgres.functions import get_postgres_table_colums
 from sgb.geoquimica.models import GeoquimicaETLConfig
 
 

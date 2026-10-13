@@ -55,16 +55,18 @@ def generate_index_name_logic(alias_name):
 # 3. Função de Python para realizar a carga pesada via PyArrow
 def stream_heavy_spatial_load_logic(**kwargs):
     ti = kwargs["ti"]
-    PARQUET_FILE_PATH = Path(PARQUET_FILE_PATH)
+
+    # Recupera o arquivo parquet criado na fase de limpeza
+    parquet_file = Path(ti.xcom_pull(task_ids="sanitize_data"))
 
     # Recupera o nome do índice gerado pela tarefa anterior via XCom
     target_index_name = ti.xcom_pull(task_ids="generate_new_index_name")
     client = _get_opensearch_client()
 
-    if not PARQUET_FILE_PATH:
-        raise FileNotFoundError(f"Arquivo GeoParquet não encontrado: {PARQUET_FILE_PATH}")
+    if not parquet_file.exists():
+        raise FileNotFoundError(f"Arquivo GeoParquet não encontrado: {parquet_file}")
 
-    parquet_file = pq.ParquetFile(PARQUET_FILE_PATH)
+    parquet_file = pq.ParquetFile(parquet_file)
 
     def generate_heavy_spatial_actions():
         for i in range(parquet_file.num_row_groups):
@@ -77,10 +79,6 @@ def stream_heavy_spatial_load_logic(**kwargs):
 
                 # Remove coluna injetada pelo Arrow
                 # row.pop("__index_level_0__")
-
-                # TODO: Remove from parquet
-                # row.pop("shape.area")
-                # row.pop("shape.len")
 
                 if not wkb_bytes or not doc_id:
                     continue

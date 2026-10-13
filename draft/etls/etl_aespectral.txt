@@ -1,0 +1,225 @@
+create or replace 
+package etl is
+  function monta_string(p_parent_table in varchar2, p_parent_join_column in varchar2, p_filter_column in varchar2, p_child_table in varchar2, p_id in number) return varchar2;
+  function classificacao_mineral(p_id_cadastro in number) return varchar2;
+  function responsavel_classificacao(p_id_cadastro in number) return varchar2;
+  procedure carrega_layer(p_reset in boolean default false);
+end etl;
+
+create or replace 
+package body etl is
+  function monta_string(p_parent_table in varchar2, p_parent_join_column in varchar2, p_filter_column in varchar2, p_child_table in varchar2, p_id in number) return varchar2 is
+    v_sql varchar2(1000);
+    v_delimiter varchar2(2);
+    v_string varchar2(1000);
+    v_result varchar2(4000);
+    type result_record_type is ref cursor;
+    c_results result_record_type;
+  begin
+    v_sql := 'select distinct t2.nome_pt from '|| p_parent_table||' t1, '|| p_child_table||' t2 where t1.'|| p_filter_column||' = '||p_id||' and t2.id = t1.'|| p_parent_join_column||' order by 1';
+    open c_results for v_sql;
+    loop
+		  fetch c_results into v_string;
+	      exit when c_results%notfound;
+        v_result :=  v_result || v_delimiter || v_string;
+        v_delimiter := ', ';
+    end loop;
+    close c_results;
+    return v_result;
+  end;
+  
+  function classificacao_mineral(p_id_cadastro in number) return varchar2 is
+    v_sql varchar2(1000);
+    v_delimiter varchar2(2);
+    v_string varchar2(1000);
+    v_result varchar2(4000);
+    type result_record_type is ref cursor;
+    c_results result_record_type;
+    
+    cursor c_minerais is
+      select id_mineral_1, id_mineral_2, id_mineral_3, id_mineral_4, id_mineral_5
+      from aespectral.as_classificacao_mineral
+      where id_cadastro = p_id_cadastro;
+  begin
+    for r_minerais in c_minerais loop
+      if r_minerais.id_mineral_1 is not null then
+        select des_mineral
+        into v_result
+        from bibliotecas.bb_mineral
+        where cod_mineral = r_minerais.id_mineral_1;
+      end if;
+      
+      v_delimiter := ', ';
+
+      if r_minerais.id_mineral_2 is not null then
+        select v_result || v_delimiter || des_mineral
+        into v_result
+        from bibliotecas.bb_mineral
+        where cod_mineral = r_minerais.id_mineral_2;
+      end if;
+        
+      if r_minerais.id_mineral_3 is not null then
+        select v_result || v_delimiter || des_mineral
+        into v_result
+        from bibliotecas.bb_mineral
+        where cod_mineral = r_minerais.id_mineral_3;
+      end if;
+
+      if r_minerais.id_mineral_4 is not null then
+        select v_result || v_delimiter || des_mineral
+        into v_result
+        from bibliotecas.bb_mineral
+        where cod_mineral = r_minerais.id_mineral_4;
+      end if;
+
+      if r_minerais.id_mineral_5 is not null then
+        select v_result || v_delimiter || des_mineral
+        into v_result
+        from bibliotecas.bb_mineral
+        where cod_mineral = r_minerais.id_mineral_5;
+      end if;
+    end loop;
+    return v_result;
+  end;
+  
+  function responsavel_classificacao(p_id_cadastro in number) return varchar2 is
+    v_result aespectral.as_bb_responsavel_identif.nome%type;
+  begin
+    select nome
+    into v_result
+    from aespectral.as_classificacao_mineral c, aespectral.as_bb_responsavel_identif r
+    where c.id_cadastro = p_id_cadastro
+    and r.id = c.id_responsavel;
+
+    return v_result;
+  end;    
+
+  procedure carrega_layer(p_reset in boolean default false) is
+    cursor c_dados_trunc is
+      select cast(ca.id as number(38)) objectid,
+             ca.id_amostra,
+             ca.data_cadastro,
+             rc.nome responsavel_preenchimento,
+             ca.num_campo_amostra codigo_amostra,
+             dca.nome_pt tipo_amostra_coletada,	   
+             ac.cod_rocha cod_litologia_campo,
+             tr.nome_pt litologia_campo,
+             ca.id_rocha_analisada,
+             ra.nome_pt rocha_analisada,
+             ca.id_mineral_analisado,
+             mi.des_mineral mineral_analisado,
+             pcp.id id_projeto,
+             pcp.nome projeto,
+             ua.nome_unidade unidade_estratigrafica,
+             'http://reportserver-cprm.cprm.gov.br/reports/rwservlet?pdfcprm' || chr(38) || 'report=dados_amostra.rdf' || chr(38) || 'p_id_amostra=' || ca.id link_relatorio,
+             'wgs84' datum,
+             acl.shape,
+             etl.classificacao_mineral(ca.id) minerais_identificados,
+             etl.responsavel_classificacao(ca.id) responsavel_classificacao
+      from aespectral.as_cadastro ca,
+           aespectral.unidades_amostra ua,
+           aespectral.as_bb_responsavel_cadastro rc, 
+           aflora.af_amostras_coletadas ac,
+           bibliotecas.bb_classe_amostra dca,		   
+           aflora.af_rocha ro,
+           bibliotecas.bb_rocha tr,
+           bibliotecas.bb_rocha ra,
+           bibliotecas.bb_mineral mi, 
+           aflora.af_afloramento acl,  
+           projetos.pr_projeto pcp,
+           projetos.pr_folha pfo
+      where ua.id = ca.id
+      --and ca.consistido = 'S'
+      and ca.id_responsavel = rc.id(+) 
+      and ca.id_amostra = ac.cod_amostra(+)
+      and ac.cod_tipo_amostra = dca.id(+)
+      and ca.id_rocha_analisada = ra.id(+)
+      and ca.id_mineral_analisado = mi.cod_mineral(+)
+      and ac.cod_rocha = ro.id
+      and ro.id_tipo_rocha = tr.id
+      and ro.id_afloramento = acl.id
+      and acl.id_folha = pfo.id
+      and pfo.id_projeto = pcp.id;
+
+    cursor c_dados is
+      select cast(ca.id as number(38)) objectid,
+             ca.id_amostra,
+             ca.data_cadastro,
+             rc.nome responsavel_preenchimento,
+             ca.num_campo_amostra codigo_amostra,
+             dca.nome_pt tipo_amostra_coletada,	   
+             ac.cod_rocha cod_litologia_campo,
+             tr.nome_pt litologia_campo,
+             ca.id_rocha_analisada,
+             ra.nome_pt rocha_analisada,
+             ca.id_mineral_analisado,
+             mi.des_mineral mineral_analisado,
+             pcp.id id_projeto,
+             pcp.nome projeto,
+             ua.nome_unidade unidade_estratigrafica,
+             'http://reportserver-cprm.cprm.gov.br/reports/rwservlet?pdfcprm' || chr(38) || 'report=dados_amostra.rdf' || chr(38) || 'p_id_amostra=' || ca.id link_relatorio,
+             'wgs84' datum,
+             acl.shape,
+             etl.classificacao_mineral(ca.id) minerais_identificados,
+             etl.responsavel_classificacao(ca.id) responsavel_classificacao
+      from aespectral.as_cadastro ca,
+           aespectral.unidades_amostra ua,
+           aespectral.as_bb_responsavel_cadastro rc, 
+           aflora.af_amostras_coletadas ac,
+           bibliotecas.bb_classe_amostra dca,		   
+           aflora.af_rocha ro,
+           bibliotecas.bb_rocha tr,
+           bibliotecas.bb_rocha ra,
+           bibliotecas.bb_mineral mi, 
+           aflora.af_afloramento acl,  
+           projetos.pr_projeto pcp,
+           projetos.pr_folha pfo
+      where ca.id not in (select objectid from aespectral.as_layer)
+      and ua.id = ca.id
+      --and ca.consistido = 'S'
+      and ca.id_responsavel = rc.id(+) 
+      and ca.id_amostra = ac.cod_amostra(+)
+      and ac.cod_tipo_amostra = dca.id(+)
+      and ca.id_rocha_analisada = ra.id(+)
+      and ca.id_mineral_analisado = mi.cod_mineral(+)
+      and ac.cod_rocha = ro.id
+      and ro.id_tipo_rocha = tr.id
+      and ro.id_afloramento = acl.id
+      and acl.id_folha = pfo.id
+      and pfo.id_projeto = pcp.id;
+
+    type layer_ttype is table of aespectral.as_layer%rowtype;
+    layer_tab layer_ttype := layer_ttype();
+  begin
+    if p_reset then
+      execute immediate 'truncate table aespectral.as_layer';
+	    open c_dados_trunc;
+  		loop
+    	  fetch c_dados_trunc
+    	  bulk collect into layer_tab limit 10000;
+    	  exit when layer_tab.count = 0;
+	      forall i in layer_tab.first .. layer_tab.last
+	      insert into aespectral.as_layer values layer_tab(i);
+	      commit;
+		  end loop;
+      close c_dados_trunc;
+	  else
+	    open c_dados;
+  		loop
+    	  fetch c_dados
+    	  bulk collect into layer_tab limit 10000;
+    	  exit when layer_tab.count = 0;
+	      forall i in layer_tab.first .. layer_tab.last
+	      insert into aespectral.as_layer values layer_tab(i);
+	      commit;
+		  end loop;
+  		close c_dados;
+	    forall i in layer_tab.first .. layer_tab.last
+	    insert into aespectral.as_layer values layer_tab(i);
+	    commit;
+    end if;
+    dbms_mview.refresh('MV_ANALISES', 'C');
+    dbms_mview.refresh('MV_ILUSTRACOES', 'C');
+    commit;
+  end;
+end etl;

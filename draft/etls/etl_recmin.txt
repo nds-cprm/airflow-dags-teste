@@ -1,0 +1,246 @@
+create or replace 
+package etl is
+  function monta_string(p_parent_table in varchar2, p_parent_join_column in varchar2, p_filter_column in varchar2, p_child_table in varchar2, p_id in number) return varchar2;
+  function monta_string_substancia(p_id_ocorrencia in number, p_parent_table in varchar2, p_child_table in varchar2, p_join_column in varchar2) return varchar2;
+  function monta_string_classe_utilitaria(p_id_ocorrencia in number, p_parent_table in varchar2, p_child_table in varchar2, p_join_column in varchar2) return varchar2;
+  procedure carrega_layer(p_reset in boolean default false);
+end etl;
+
+create or replace 
+package body etl is
+  function monta_string(p_parent_table in varchar2, p_parent_join_column in varchar2, p_filter_column in varchar2, p_child_table in varchar2, p_id in number) return varchar2 is
+    v_sql varchar2(1000);
+    v_delimiter varchar2(2);
+    v_string varchar2(1000);
+    v_result varchar2(8192);
+    type result_record_type is ref cursor;
+    c_results result_record_type;
+  begin
+    v_sql := 'select distinct t2.nome_pt from '||p_parent_table||' t1, '||p_child_table||' t2 where t1.'|| p_filter_column||' = '||p_id||' and t2.id <> 731 and t2.id = t1.'|| p_parent_join_column||' order by 1';
+    open c_results for v_sql;
+    loop
+		  fetch c_results into v_string;
+	      exit when c_results%notfound;
+        v_result :=  v_result || v_delimiter || v_string;
+        v_delimiter := ', ';
+    end loop;
+    close c_results;
+    return v_result;
+  end;
+
+  function monta_string_classe_utilitaria(p_id_ocorrencia in number, p_parent_table in varchar2, p_child_table in varchar2, p_join_column in varchar2) return varchar2 is
+    v_sql varchar2(1000);
+    v_delimiter varchar2(2);
+    v_string varchar2(1000);
+    v_result varchar2(8192);
+    type result_record_type is ref cursor;
+    c_results result_record_type;
+  begin
+    v_sql := 'select nome_pt from (select t3.nome_pt from recmin.rm_substancia_mineral t1, '||p_parent_table||' t2, '||p_child_table||' t3 where t1.id_ocorrencia = '||p_id_ocorrencia||' and t2.id_substancia_mineral = t1.id and t3.id = t2.'||p_join_column||' order by t1.id_importancia, t2.id) where rownum = 1';
+    open c_results for v_sql;
+    loop
+		  fetch c_results into v_string;
+	      exit when c_results%notfound;
+        v_result :=  v_result || v_delimiter || v_string;
+        v_delimiter := ', ';
+    end loop;
+    close c_results;
+    if v_result is null then
+      v_result := 'Não definida';
+    end if;
+    return v_result;
+  end;
+
+  function monta_string_substancia(p_id_ocorrencia in number, p_parent_table in varchar2, p_child_table in varchar2, p_join_column in varchar2) return varchar2 is
+    v_sql varchar2(1000);
+    v_delimiter varchar2(2);
+    v_string varchar2(1000);
+    v_result varchar2(8192);
+    type result_record_type is ref cursor;
+    c_results result_record_type;
+  begin
+    v_sql := 'select distinct t3.nome_pt from recmin.rm_substancia_mineral t1, '||p_parent_table||' t2, '||p_child_table||' t3 where t1.id_ocorrencia = '||p_id_ocorrencia||' and t2.id_substancia_mineral = t1.id and t3.id = t2.'||p_join_column||' order by 1';
+    open c_results for v_sql;
+    loop
+		  fetch c_results into v_string;
+	      exit when c_results%notfound;
+        v_result :=  v_result || v_delimiter || v_string;
+        v_delimiter := ', ';
+    end loop;
+    close c_results;
+    return v_result;
+  end;
+
+  procedure carrega_layer(p_reset in boolean default false) is
+    type layer_ttype is table of recmin.rm_layer%rowtype;
+    layer_tab layer_ttype := layer_ttype();
+  begin
+    if p_reset then
+      execute immediate 'truncate table recmin.rm_layer';
+    end if;
+    
+    select r92.nextval fid,
+           af.id id_afloramento,
+           decode(af.id_categoria, 1, 'Mainframe', 'Oracle')  origem,
+           bmg.nome_pt metodo_geoposicionamento,
+           toponimia,
+           mun.nome municipio,
+           mun.uf,
+           bge.nome geologo,
+           to_char(data_cadastro, 'fmdd/mm/rrrr') data_cadastro,
+           bta.nome_pt tipo_afloramento,
+           af.descricao,
+           af.numero_campo,
+           monta_string('aflora.af_rocha', 'id_tipo_rocha', 'id_afloramento', 'bibliotecas.bb_rocha', af.id) rochas,
+           bsu.nome sureg,
+           ppr.nome projeto,
+           lbc.codigo codigo_folha,
+           lbc.nome folha,
+           oc.id id_ocorrencia,
+           bpr.nome_pt provincia,
+           bse.nome_pt status_economico,
+           bgi.nome_pt importancia,
+           blm.nome_pt localizacao_mina,
+           bsm.nome_pt situacao_mina,
+           bmm.nome_pt motivo_inatividade_mina,
+           bsm.nome_pt situacao_garimpo,
+           bmm.nome_pt motivo_inatividade_garimpo,
+           monta_string('recmin.rm_substancia_mineral', 'id_substancia_mineral', 'id_ocorrencia', 'bibliotecas.bb_substancia_mineral', oc.id) substancias,
+           af.shape,
+           monta_string_substancia(oc.id, 'recmin.rm_rocha_hospedeira', 'bibliotecas.bb_rocha', 'id_tipo_rocha') rochas_hospedeiras,
+           monta_string_substancia(oc.id, 'recmin.rm_rocha_encaixante', 'bibliotecas.bb_rocha', 'id_tipo_rocha') rochas_encaixantes,
+           monta_string_classe_utilitaria(oc.id, 'recmin.rm_classe_utilitaria', 'bibliotecas.bb_classe_utilitaria', 'id_classe_utilitaria') classes_utilitarias,
+           monta_string_substancia(oc.id, 'recmin.rm_estrutura_mineral', 'bibliotecas.bb_estrutura_mineral', 'id_estrutura_mineral') morfologia,
+           monta_string_substancia(oc.id, 'recmin.rm_textura_mineral', 'bibliotecas.bb_textura_mineral', 'id_textura_mineral') texturas,
+           monta_string_substancia(oc.id, 'recmin.rm_tipo_alteracao', 'bibliotecas.bb_tipo_alteracao', 'id_tipo_alteracao') tipos_alteracao,
+           sde.st_geometry_operators.st_x_f(af.shape),
+           sde.st_geometry_operators.st_y_f(af.shape),
+           'WGS84'
+    bulk collect into layer_tab
+    from aflora.af_afloramento af,
+         aflora.af_bb_tipo_afloramento bta,
+         bibliotecas.bb_metodo_geoposicionamento bmg,
+         bibliotecas.bb_sureg bsu,
+         bibliotecas.bb_geologo bge,
+         projetos.pr_folha pfl,
+         layers.base_cartografica lbc,
+         projetos.pr_projeto ppr,
+         layers.municipios mun,
+         recmin.rm_ocorrencia oc,
+         bibliotecas.bb_provincia bpr,
+         bibliotecas.bb_status_x_importancia bsi,
+         bibliotecas.bb_status_economico bse,
+         bibliotecas.bb_grau_importancia bgi,
+         bibliotecas.bb_localizacao_mina blm,
+         bibliotecas.bb_situacao_mina_garimpo bsm,
+         bibliotecas.bb_motivo_mina_garimpo_inativo bmm,
+         bibliotecas.bb_situacao_mina_garimpo bsg,
+         bibliotecas.bb_motivo_mina_garimpo_inativo bmgi
+    where bta.id(+) = af.id_tipo_afloramento
+    and bmg.id(+) = af.id_metodo_geoposicionamento
+    and bsu.id(+) = af.id_sureg
+    and bge.id(+) = af.id_geologo
+    and pfl.id(+) = af.id_folha
+    and lbc.id(+) = pfl.id_base_cartografica
+    and ppr.id(+) = pfl.id_projeto
+    and sde.st_relation_operators.st_contains_f(mun.shape, af.shape) = 1
+    and oc.id_afloramento = af.id
+    and oc.consistido = 'S'
+    and bpr.id = oc.id_provincia
+    and bsi.id(+) = oc.id_status_x_importancia
+    and bse.id(+) = bsi.id_status_economico
+    and bgi.id(+) = bsi.id_grau_importancia
+    and blm.id(+) = oc.id_localizacao_mina
+    and bsm.id(+) = oc.id_situacao_mina
+    and bmm.id(+) = oc.id_motivo_inatividade_mina
+    and bsg.id(+) = oc.id_situacao_garimpo
+    and bmgi.id(+) = oc.id_motivo_inatividade_garimpo
+    and oc.id not in (select id_ocorrencia from recmin.rm_layer);
+    forall i in layer_tab.first .. layer_tab.last
+      insert into recmin.rm_layer values layer_tab(i);
+    commit;
+    
+    -- Ocorrências minerais que não estão em nenhum município.
+    select r92.nextval fid,
+           af.id id_afloramento,
+           decode(af.id_categoria, 1, 'Mainframe', 'Oracle')  origem,
+           bmg.nome_pt metodo_geoposicionamento,
+           toponimia,
+           null municipio,
+           null uf,
+           bge.nome geologo,
+           to_char(data_cadastro, 'fmdd/mm/rrrr') data_cadastro,
+           bta.nome_pt tipo_afloramento,
+           af.descricao,
+           af.numero_campo,
+           monta_string('aflora.af_rocha', 'id_tipo_rocha', 'id_afloramento', 'bibliotecas.bb_rocha', af.id) rochas,
+           bsu.nome sureg,
+           ppr.nome projeto,
+           lbc.codigo codigo_folha,
+           lbc.nome folha,
+           oc.id id_ocorrencia,
+           bpr.nome_pt provincia,
+           bse.nome_pt status_economico,
+           bgi.nome_pt importancia,
+           blm.nome_pt localizacao_mina,
+           bsm.nome_pt situacao_mina,
+           bmm.nome_pt motivo_inatividade_mina,
+           bsm.nome_pt situacao_garimpo,
+           bmm.nome_pt motivo_inatividade_garimpo,
+           monta_string('recmin.rm_substancia_mineral', 'id_substancia_mineral', 'id_ocorrencia', 'bibliotecas.bb_substancia_mineral', oc.id) substancias,
+           af.shape,
+           monta_string_substancia(oc.id, 'recmin.rm_rocha_hospedeira', 'bibliotecas.bb_rocha', 'id_tipo_rocha') rochas_hospedeiras,
+           monta_string_substancia(oc.id, 'recmin.rm_rocha_encaixante', 'bibliotecas.bb_rocha', 'id_tipo_rocha') rochas_encaixantes,
+           monta_string_classe_utilitaria(oc.id, 'recmin.rm_classe_utilitaria', 'bibliotecas.bb_classe_utilitaria', 'id_classe_utilitaria') classes_utilitarias,
+           monta_string_substancia(oc.id, 'recmin.rm_estrutura_mineral', 'bibliotecas.bb_estrutura_mineral', 'id_estrutura_mineral') morfologia,
+           monta_string_substancia(oc.id, 'recmin.rm_textura_mineral', 'bibliotecas.bb_textura_mineral', 'id_textura_mineral') texturas,
+           monta_string_substancia(oc.id, 'recmin.rm_tipo_alteracao', 'bibliotecas.bb_tipo_alteracao', 'id_tipo_alteracao') tipos_alteracao,
+           sde.st_geometry_operators.st_x_f(af.shape),
+           sde.st_geometry_operators.st_y_f(af.shape),
+           'WGS84'
+    bulk collect into layer_tab
+    from aflora.af_afloramento af,
+         aflora.af_bb_tipo_afloramento bta,
+         bibliotecas.bb_metodo_geoposicionamento bmg,
+         bibliotecas.bb_sureg bsu,
+         bibliotecas.bb_geologo bge,
+         projetos.pr_folha pfl,
+         layers.base_cartografica lbc,
+         projetos.pr_projeto ppr,
+         recmin.rm_ocorrencia oc,
+         bibliotecas.bb_provincia bpr,
+         bibliotecas.bb_status_x_importancia bsi,
+         bibliotecas.bb_status_economico bse,
+         bibliotecas.bb_grau_importancia bgi,
+         bibliotecas.bb_localizacao_mina blm,
+         bibliotecas.bb_situacao_mina_garimpo bsm,
+         bibliotecas.bb_motivo_mina_garimpo_inativo bmm,
+         bibliotecas.bb_situacao_mina_garimpo bsg,
+         bibliotecas.bb_motivo_mina_garimpo_inativo bmgi
+    where bta.id(+) = af.id_tipo_afloramento
+    and bmg.id(+) = af.id_metodo_geoposicionamento
+    and bsu.id(+) = af.id_sureg
+    and bge.id(+) = af.id_geologo
+    and pfl.id(+) = af.id_folha
+    and lbc.id(+) = pfl.id_base_cartografica
+    and ppr.id(+) = pfl.id_projeto
+    and oc.id_afloramento = af.id
+    and oc.consistido = 'S'
+    and bpr.id = oc.id_provincia
+    and bsi.id(+) = oc.id_status_x_importancia
+    and bse.id(+) = bsi.id_status_economico
+    and bgi.id(+) = bsi.id_grau_importancia
+    and blm.id(+) = oc.id_localizacao_mina
+    and bsm.id(+) = oc.id_situacao_mina
+    and bmm.id(+) = oc.id_motivo_inatividade_mina
+    and bsg.id(+) = oc.id_situacao_garimpo
+    and bmgi.id(+) = oc.id_motivo_inatividade_garimpo
+    and oc.id not in (select id_ocorrencia from recmin.rm_layer);
+    forall i in layer_tab.first .. layer_tab.last
+      insert into recmin.rm_layer values layer_tab(i);
+    commit;
+  exception
+    when others then
+      dbms_output.put_line(sqlerrm);
+  end;
+end etl;

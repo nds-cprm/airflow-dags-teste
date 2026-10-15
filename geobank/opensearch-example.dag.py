@@ -10,7 +10,7 @@ from sgb.common.opensearch.functions import (
     atomic_alias_switch_and_cleanup_logic
 )
 from sgb.common.opensearch.templates import INDEX_BODY_TEMPLATE
-from sgb.geobank.oracle.functions import extract_data_from_oracle, sanitize_data
+from sgb.geobank.functions import extract_data_from_oracle, sanitize_data
 
 
 # ALIAS_NAME = "litoestratigrafia_1m" 

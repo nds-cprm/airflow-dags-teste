@@ -1,6 +1,6 @@
 select 
-    -- r169323.nextval fid,
     gu.OBJECTID AS fid,
+    --r169323.nextval fid,
     ue.id id_unidade_estratigrafica,
     ue.sigla,
     he.nome_pt hierarquia,
@@ -12,10 +12,10 @@ select
     ue.legenda,
     '1:' || to_char(be.valor, 'fm999G999G999') escala,
     wm.nome_mapa mapa,
-    --monta_string('litoestratigrafia.ue_litologia', 'id_rocha', 'id_unidade_estratigrafica', null, 'bibliotecas.bb_rocha', ue.id) litotipos,
+    -- monta_string('litoestratigrafia.ue_litologia', 'id_rocha', 'id_unidade_estratigrafica', null, 'bibliotecas.bb_rocha', ue.id) litotipos,
     ri.id range,
-    ri.idade_min_unidade idade_min,
     ri.idade_max_unidade idade_max,
+    ri.idade_min_unidade idade_min,
     eol.nome_pt eon_min,
     eou.nome_pt eon_max,
     erl.nome_pt era_min,
@@ -24,9 +24,10 @@ select
     siu.nome_pt sistema_max,
     epl.nome_pt epoca_min,
     epu.nome_pt epoca_max,
-    --monta_siglas_historicas(ue.id) siglas_historicas,
+    -- monta_siglas_historicas(ue.id) siglas_historicas,
     sde.st_asbinary(gu.shape) geometry
-    --'2500000' grupo,
+    -- 'ESTADOS' grupo,
+    -- gu.rowid record_hash
 from litoestratigrafia.ue_geometria_unidade gu,
     litoestratigrafia.ue_unidade_estratigrafica ue,
     bibliotecas.bb_hierarquia_estratigrafica he,
@@ -45,7 +46,9 @@ from litoestratigrafia.ue_geometria_unidade gu,
     bibliotecas.bb_epoca epu,
     geobank.wm_mapas wm,
     bibliotecas.bb_escala be
-where gu.id_mapa = 3478
+where gu.id_mapa in (
+    select cod_mapa from geobank.wm_mapas where cod_grupo = 3
+)
 --and gu.rowid in (select trim(record_hash) from litoestratigrafia.t)
 --and gu.rowid not in (select trim(record_hash) from litoestratigrafia.t_area_zero_geo where escala <> '1:100,000')
 and gu.id_unidade_estratigrafica(+) = ue.id

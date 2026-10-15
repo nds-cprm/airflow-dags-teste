@@ -1,5 +1,6 @@
 select 
-    r169323.nextval fid,
+    gu.OBJECTID AS fid,
+    -- r169323.nextval fid,
     ue.id id_unidade_estratigrafica,
     ue.sigla,
     he.nome_pt hierarquia,
@@ -11,9 +12,10 @@ select
     ue.legenda,
     '1:' || to_char(be.valor, 'fm999G999G999') escala,
     wm.nome_mapa mapa,
-    monta_string('litoestratigrafia.ue_litologia', 'id_rocha', 'id_unidade_estratigrafica', null, 'bibliotecas.bb_rocha', ue.id) litotipos,
+    -- monta_string('litoestratigrafia.ue_litologia', 'id_rocha', 'id_unidade_estratigrafica', null, 'bibliotecas.bb_rocha', ue.id) litotipos,
     ri.id range,
     ri.idade_max_unidade idade_max,
+    ri.idade_min_unidade idade_min,
     eol.nome_pt eon_min,
     eou.nome_pt eon_max,
     erl.nome_pt era_min,
@@ -22,11 +24,10 @@ select
     siu.nome_pt sistema_max,
     epl.nome_pt epoca_min,
     epu.nome_pt epoca_max,
-    monta_siglas_historicas(ue.id) siglas_historicas,
-    gu.shape,
-    decode(p_escala, 4, '250000', 5, '100000', 17, '150000', 6, '50000', 7, '25000') grupo,
-    ri.idade_min_unidade idade_min,
-    gu.rowid record_hash
+    -- monta_siglas_historicas(ue.id) siglas_historicas,
+    sde.st_asbinary(gu.shape) geometry
+    -- decode(p_escala, 4, '250000', 5, '100000', 17, '150000', 6, '50000', 7, '25000') grupo,
+    -- gu.rowid record_hash
 from litoestratigrafia.ue_geometria_unidade gu,
     litoestratigrafia.ue_unidade_estratigrafica ue,
     bibliotecas.bb_hierarquia_estratigrafica he,
@@ -46,7 +47,11 @@ from litoestratigrafia.ue_geometria_unidade gu,
     geobank.wm_mapas wm,
     bibliotecas.bb_escala be
 where gu.id_mapa in (
-    select cod_mapa from geobank.wm_mapas where cod_escala = p_escala and cod_grupo <> 3 and cod_mapa not in (188, 189, 270)
+    select cod_mapa 
+      from geobank.wm_mapas 
+     where cod_escala = :p_escala    -- Definir parâmetro aqui
+       and cod_grupo <> 3 
+       and cod_mapa not in (188, 189, 270)
 )
 --and gu.rowid in (select trim(record_hash) from litoestratigrafia.t)
 --and gu.rowid not in (select trim(record_hash) from litoestratigrafia.t_area_zero_geo where escala <> '1:100,000')
@@ -67,4 +72,6 @@ and epl.id(+) = ri.sistema_min
 and epu.id(+) = ri.sistema_max
 and wm.cod_mapa = gu.id_mapa
 and wm.cod_escala = be.id
-and wm.cod_grupo <> 3;
+and wm.cod_grupo <> 3
+
+-- decode(p_escala, 4, '250000', 5, '100000', 17, '150000', 6, '50000', 7, '25000') grupo,

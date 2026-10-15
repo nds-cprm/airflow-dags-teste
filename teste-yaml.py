@@ -1,7 +1,7 @@
 import yaml
 from pprint import pprint
 
-from geoquimica.models import GeoquimicaETLConfig
+from sgb.geoquimica.common.models import GeoquimicaETLConfig
 
 
 # Load from a file

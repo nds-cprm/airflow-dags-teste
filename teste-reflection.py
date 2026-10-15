@@ -8,7 +8,7 @@ from datetime import datetime
 from sqlalchemy import create_engine, MetaData, text
 from sqlalchemy.exc import ProgrammingError
 
-from utils.sde import STGeometry, SDETable
+from sgb.common.sqlalchemy.sde import STGeometry, SDETable
 
 
 logging.basicConfig(level=logging.INFO)

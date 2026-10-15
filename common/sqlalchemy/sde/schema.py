@@ -3,7 +3,8 @@ import logging
 
 from dataclasses import dataclass
 from sqlalchemy import Table, text
-from utils.sde import STGeometry
+
+from .types import STGeometry
 
 
 log = logging.getLogger("geosgb.utils.schema")

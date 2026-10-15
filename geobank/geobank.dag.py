@@ -212,7 +212,7 @@ for config_name, config in geobank_tables.items():
 
             from sqlalchemy import MetaData, create_engine
 
-            from utils.sde import STGeometry, SDETable
+            from sgb.common.sqlalchemy.sde import STGeometry, SDETable
 
             sys.modules["cx_Oracle"] = oracledb
             oracledb.version = "8.3.0"

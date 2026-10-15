@@ -1,0 +1,1 @@
+SELECT * FROM SIAGAS.Consulta.VW_Siagas_Airflow

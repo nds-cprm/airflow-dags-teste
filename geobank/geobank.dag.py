@@ -7,13 +7,24 @@ from airflow.models import Variable
 from airflow.providers.oracle.hooks.oracle import OracleHook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 # from airflow.providers.smtp.operators.smtp import EmailOperator
+from airflow.utils.dates import days_ago
 from pathlib import Path
-
-from sgb.common import default_args
+from pendulum import duration
 
 
 log = logging.getLogger("airflow.task")
 
+
+default_args = {
+    'owner': 'digeop',
+    'depends_on_past': False,
+    'start_date': days_ago(2),
+    'email': ['carlos.mota@sgb.gov.br'],
+    'email_on_failure': False,
+    'email_on_retry': False,
+    'retries': 1,
+    'retry_delay': duration(minutes=10),
+}
 
 
 # TODO: Trocar por JSON ou YAML carregado de arquivo

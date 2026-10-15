@@ -218,7 +218,10 @@ __marimo__/
 # Project Specific
 data/
 venv/
+draft/
 
 # GeoData files
 *.geojson
 *.gpkg
+*.parquet
+*.geoprquet

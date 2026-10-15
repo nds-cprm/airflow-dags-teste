@@ -3,8 +3,8 @@ import logging
 from airflow.decorators import task
 from slugify import slugify
 
-from sgb.common import export_parquet
-from sgb.geoquimica.models import GeoquimicaETLConfig
+from sgb.geoquimica.common import export_parquet
+from sgb.geoquimica.common.models import GeoquimicaETLConfig
 
 
 log = logging.getLogger("airflow.task")

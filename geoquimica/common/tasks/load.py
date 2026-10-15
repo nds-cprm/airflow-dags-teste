@@ -4,7 +4,7 @@ from airflow.decorators import task
 from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-from sgb.geoquimica.models import GeoquimicaETLConfig
+from sgb.geoquimica.common.models import GeoquimicaETLConfig
 
 
 log = logging.getLogger("airflow.task")
@@ -17,7 +17,8 @@ def write_postgres(survey_file, assay_file, etl: GeoquimicaETLConfig, weight_fil
     from sqlalchemy import text
 
 
-    conn_name = etl.destination.connectionName
+    conn_name = Variable.get("GEOQUIMICA_SRC_DATABASE", default_var=etl.destination.connectionName) 
+    
     hook = PostgresHook(postgres_conn_id=conn_name)
 
     # Gravar o parquet no banco de dados

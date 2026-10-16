@@ -17,7 +17,7 @@ def write_postgres(survey_file, assay_file, etl: GeoquimicaETLConfig, weight_fil
     from sqlalchemy import text
 
 
-    conn_name = Variable.get("GEOQUIMICA_SRC_DATABASE", default_var=etl.destination.connectionName) 
+    conn_name = Variable.get("GEOQUIMICA_DST_DATABASE", default_var=etl.destination.connectionName) 
     
     hook = PostgresHook(postgres_conn_id=conn_name)
 

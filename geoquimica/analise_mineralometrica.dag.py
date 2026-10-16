@@ -5,7 +5,7 @@ from airflow.decorators import dag
 # from airflow.providers.smtp.operators.smtp import EmailOperator
 from pathlib import Path
 
-from sgb.geoquimica import default_args
+from sgb.geoquimica.common import default_args
 from sgb.geoquimica.common.models import GeoquimicaETLConfig
 from sgb.geoquimica.common.tasks.common import extract_bronze_table, sanitize_survey_dataset
 from sgb.geoquimica.common.tasks.analise_mineralometrica import sanitize_weight_dataset, sanitize_assay_dataset
